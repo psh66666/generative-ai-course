@@ -1,0 +1,29 @@
+<!doctype html>
+<html lang="zh-CN"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>第四章 · 自回归模型为什么能生成整段文本？</title><link rel="stylesheet" href="../assets/course.css"></head><body><main>
+<div class="eyebrow">生成式人工智能 · 第 4 章 / 第 1 节 · 约 15 分钟</div><h1>预测下一个，为什么就能生成全部？</h1>
+<p class="lead">本节目标：从概率链式法则推到逐 token 生成，并分清训练时的真实前缀与推理时的模型前缀。</p>
+
+<h2>1. 链式法则给出建模路线</h2>
+<p>把一句话切成 token 序列 x₁,x₂,…,xₙ。token 可能是一个字、一个词或词片；数学推导与具体切法无关。联合概率总可以写成：</p>
+<div class="formula">pθ(x₁,…,xₙ)=∏ₜ₌₁ⁿ pθ(xₜ|x₁,…,xₜ₋₁)</div>
+<p>例如“<strong>小明 买 书</strong>”的概率等于 p(小明)×p(买|小明)×p(书|小明,买)。这就是自回归：当前位置的预测依赖已经出现的前缀。[<a href="https://arxiv.org/abs/1706.03762">Transformer 原论文</a>]</p>
+<div class="card"><p>若三个条件概率依次是 0.2、0.5、0.4，则整句概率为 0.2×0.5×0.4=<strong>0.04</strong>。提高真实下一个 token 的条件概率，就能提高训练句子的整体概率。</p></div>
+
+<h2>2. 训练时：答案已知，用真实前缀</h2>
+<p>给模型真实句子“<strong>小明 买 书</strong>”。训练样本可以同时构造成：</p>
+<div class="card"><p>输入前缀：〈开始〉 → 预测“小明”</p><p>输入前缀：〈开始〉 小明 → 预测“买”</p><p>输入前缀：〈开始〉 小明 买 → 预测“书”</p></div>
+<p>每个位置都用<strong>真实的先前 token</strong>作为上下文，这常称为 teacher forcing（教师强制）。训练目标是最大化各位置真实 token 的对数概率，通常写成负对数似然损失：</p>
+<div class="formula">L(θ)=−Σₜ log pθ(xₜ|x₁,…,xₜ₋₁)</div>
+<p>如果模型使用因果掩码的 Transformer，所有真实前缀已在同一条序列中，训练可并行计算多个位置的预测；这不意味着生成时能一次知道未来 token。[<a href="https://arxiv.org/abs/1706.03762">Transformer 原论文</a>]</p>
+
+<h2>3. 推理时：答案未知，用模型刚生成的前缀</h2>
+<p>生成时模型先从 pθ(x₁) 选择或采样 x₁，再从 pθ(x₂|x₁) 取得 x₂，以此类推。若第二步生成了错误的“卖”，第三步只能根据“小明 卖”继续，而不能悄悄换回训练集中的“小明 买”。</p>
+<div class="card accent"><p><strong>训练与生成的差别：</strong>训练：真实前缀 → 预测真实下一个；推理：模型前缀 → 采样下一个。教师强制让单步学习清晰、训练高效，但<strong>不保证推理时没有错误累积</strong>；两阶段前缀来源不同会带来暴露偏差。[<a href="https://arxiv.org/abs/1506.03099">Bengio 等，2015</a>]</p></div>
+
+<h2>4. 为什么图像也能自回归？</h2>
+<p>像素或图像离散编码也能排成序列，按某个顺序逐个预测下一个。链式法则对不同顺序都成立；但有限容量模型、网络结构与训练效率会使具体顺序影响学习效果。PixelRNN 就研究了逐像素生成。[<a href="https://arxiv.org/abs/1601.06759">PixelRNN 原论文</a>]</p>
+
+<h2>理解检查</h2><ol><li>“小明 买 书”的联合概率怎样写成三个条件概率的乘积？</li><li>训练时模型在预测“书”时看到什么前缀？若推理时上一步生成了“卖”，下一步会看到什么前缀？</li><li>为什么教师强制有利于训练，却不能保证生成时不累积错误？</li></ol>
+<p>请用自己的话回答；若哪一步不清楚，可以要求我用数字再推一次。</p>
+<p class="small"><a href="0008-naive-bayes-posterior-derivation.html">复习第 3 章</a> · <a href="../COURSE.md">课程路线</a> · 主要阅读：<a href="https://arxiv.org/abs/1506.03099">Scheduled Sampling 论文摘要</a></p>
+</main></body></html>

@@ -1,0 +1,24 @@
+<!doctype html>
+<html lang="zh-CN"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>第六章 · GAN 的梯度问题与梯度惩罚</title><link rel="stylesheet" href="../assets/course.css"></head><body><main>
+<div class="eyebrow">生成式人工智能 · 第 6 章 / 第 2 节 · 约 15 分钟</div><h1>判别器说“假”，生成器怎样知道往哪改？</h1>
+<p class="lead">本节目标：分清原始 GAN 的饱和梯度问题、原论文提出的生成器损失改法，以及 WGAN-GP 中梯度惩罚约束的对象。</p>
+
+<h2>1. “判断很准”和“反馈有用”是两件事</h2>
+<p>假设生成器给出一张明显不像猫的图，判别器把它判为假。仅知道“假”还不够；生成器训练需要的是：若把图片稍微朝某方向改，判别器分数会怎样变？这个随输入变化的方向和幅度，才可能沿判别器传回生成器。</p>
+<p>当原始 GAN 的判别器把假图的概率压得非常接近 0 时，原始极小极大形式的生成器目标可能进入饱和区，生成器早期得到的有效梯度较弱。原始论文因此也提出一种常用的非饱和生成器目标：让 G 提高 log D(G(z))，而不是只最小化 log(1−D(G(z)))。它们有相同的理想匹配点，但早期梯度性质不同。[<a href="https://arxiv.org/pdf/1406.2661">GAN 原论文，第 3 节</a>]</p>
+<div class="card accent"><p><strong>先记住解决对象：</strong>原始 GAN 的非饱和损失改的是<strong>生成器的训练目标</strong>，让判别器明显识破假图时，生成器仍较容易获得改进信号。</p></div>
+<p>把判别器对假图的输出记为 D(fake)。在“尽量把损失降小”的写法下，原始极小极大形式让 G 降低 log(1−D(fake))；常用非饱和形式让 G 降低 −log D(fake)。<strong>两行都是 G 的损失，D 仍训练着区分真假。</strong>若 D(fake)=0.01，这两种写法对判别器输出前的分数所给的梯度幅度分别约为 0.01 与 0.99；后者在这一饱和情形下给 G 较强的局部信号。具体是否能传到 G 还取决于整个网络的计算路径。[<a href="https://arxiv.org/pdf/1406.2661">GAN 原论文，第 3 节</a>]</p>
+
+<h2>2. WGAN 先换了“裁判”的含义</h2>
+<p>后来的 Wasserstein GAN（WGAN）使用一个 critic（评论器）给样本实数评分，通常不把它解释成“真实概率”。它的理论目标与原始 GAN 的 JS 分析不同，采用 Wasserstein 距离相关的思想。为了让这个目标成立，需要限制 critic 的变化速度，即满足 Lipschitz 约束。[<a href="https://arxiv.org/abs/1701.07875">WGAN 原论文</a>]</p>
+<p>直观地说，如果输入图片只发生微小变化，critic 的分数不能任意剧烈跳动；我们希望它对生成器提供可用的变化方向。最初 WGAN 用截断权重近似满足约束，但可能使 critic 表达能力受损、训练不稳。[<a href="https://arxiv.org/abs/1704.00028">WGAN-GP 原论文</a>]</p>
+
+<h2>3. 梯度惩罚到底惩罚谁？</h2>
+<p>WGAN-GP 在<strong>critic 的损失</strong>中加一项，检查 critic 分数对<strong>输入图片</strong>的变化率。在真实图与假图之间抽一些插值点，若这些位置的梯度范数偏离 1，就增加惩罚：</p>
+<div class="formula">GP = λ·E[(‖∇ₓ D(x̂)‖₂ − 1)²]</div>
+<p>这里的 ∇ₓ 是“对图片输入求梯度”，不是“直接给生成器参数加惩罚”。这项设计帮助 WGAN 的 critic 满足所需的平滑约束，替代权重截断。课程纪要把它简写为“判别器过优，所以加梯度惩罚”，容易把两套方法混为一谈：<strong>原始 GAN 的非饱和生成器损失</strong>与<strong>WGAN-GP 的 critic 梯度惩罚</strong>属于不同的训练设计。[<a href="https://arxiv.org/abs/1704.00028">Gulrajani 等，2017</a>]</p>
+
+<h2>第 6 章理解检查</h2><ol><li>如果判别器把假图判断得很准，为什么这仍可能不足以教会生成器如何改图？</li><li>原始 GAN 的非饱和损失主要改 G 还是 D 的训练目标？</li><li>WGAN-GP 的梯度惩罚加在哪个网络的损失上？它检查的是该网络输出对什么输入的变化率？</li></ol>
+<p>先回答，再进入正规化流模型。如果概念像两套规则打架，我们可以用一张对照图重新讲。</p>
+<p class="small"><a href="0013-gan-generator-discriminator.html">上一节</a> · <a href="../COURSE.md">课程路线</a> · 主要阅读：<a href="https://arxiv.org/abs/1704.00028">WGAN-GP 原论文摘要与图 1</a></p>
+</main></body></html>

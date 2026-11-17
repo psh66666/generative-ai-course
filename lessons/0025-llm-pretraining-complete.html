@@ -1,0 +1,38 @@
+<!doctype html>
+<html lang="zh-CN"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>第十一章：LLM 预训练为何是下一 token 预测</title><link rel="stylesheet" href="../assets/course.css"></head><body><main>
+<div class="eyebrow">生成式人工智能 · 第 11 章完整课件</div><h1>LLM 预训练：为什么预测下一个 token 能学到语言？</h1>
+<p class="lead">第 10 章解释了模型怎样读取上下文。本章解释它用什么任务训练：给定前文，对真实的下一个 token 分配更高概率。这个简单目标覆盖大量不同上下文，因此模型必须利用语法、实体关系、常见推理模式等可帮助预测的统计规律；但训练目标本身不等于“保证回答真实且符合指令”。[<a href="https://arxiv.org/abs/2005.14165">GPT-3 原论文</a>]</p>
+
+<h2>1. 文本怎样成为预测任务？</h2>
+<p>模型处理的是 token ID，而不是直接处理“词义”。分词器把字符串切成词、子词或其他片段，再映射到固定词表。例如罕见词可以由多个子词表示，避免每个新词都必须占一个词表位置。具体切法取决于分词器；<strong>token 不必等于一个汉字或一个完整单词</strong>。[<a href="https://arxiv.org/abs/1508.07909">子词分词原始研究</a>]</p>
+<p>把一段文本记为 x₁,…,xₙ。概率链式法则给出不带独立假设的分解：</p>
+<div class="formula">pθ(x₁,…,xₙ)=∏ᵢ₌₁ⁿ pθ(xᵢ|x₁,…,xᵢ₋₁)</div>
+<p>训练样本并不需要人工逐条标“正确下一个词”。在已有文本中，真实 xᵢ 自然就是监督标签；其前缀 x&lt;ᵢ 是输入条件。实现时把输入与目标错开一位：输入位置 i−1 的表示用于预测 xᵢ。因果掩码阻止该输入位置读取更后面的 token，错位则保证目标 xᵢ 不会作为该位置的输入被直接看到。</p>
+
+<h2>2. 实际优化什么损失？</h2>
+<p>对每个位置，模型输出整个词表的 logits a，再用 softmax 得到概率 pθ(xᵢ|x&lt;ᵢ)。真实 token 的损失为负对数概率；一段文本把各位置相加或取平均：</p>
+<div class="formula">L<sub>pretrain</sub>(θ)=−Σᵢ log pθ(xᵢ|x&lt;ᵢ)<br>pθ(j|x&lt;ᵢ)=exp(aⱼ)/Σₖexp(aₖ)</div>
+<p>若真实 token 概率只有 0.1，损失为 −log 0.1≈2.30；提高到 0.8 后，损失降为约 0.22。对 logit aⱼ 的梯度是 pθ(j|前缀)−1[j=真实 token]：真实 token 的 logit 倾向被推高，其余 token 按当前概率被压低。这说明优化怎样通过反向传播改变网络，而不是只说“模型看过文本”。</p>
+<p>从分布角度，在数据分布固定且满足相应条件时，期望负对数似然与 KL(Pdata‖Pθ) 只差一个不随 θ 变化的熵项；代码实际计算的是样本负对数似然，不需要显式知道 Pdata 的完整分布。</p>
+
+<h2>3. 一个完整的三 token 例子</h2>
+<p>对序列 A、B、C，假设模型分别给真实 token 的条件概率 0.5、0.8、0.25，则该序列概率是 0.5×0.8×0.25=0.1，序列负对数似然是 −log 0.1≈2.30。这既可看作三个位置损失相加，也可看作整条自回归生成路径的损失。</p>
+<p>训练时三个位置都使用真实前缀：预测 C 时条件是 A、B。生成时若第二步错误地选成 D，第三步条件就变成 A、D。这种训练与采样的前缀差异与第 4 章的教师强制问题相同；它不会因为换成 Transformer 而自动消失。</p>
+
+<h2>4. 数据、模型、训练过程各负责什么？</h2>
+<div class="table-wrap"><table><thead><tr><th>环节</th><th>作用</th><th>容易误解的地方</th></tr></thead><tbody>
+<tr><td>分词器</td><td>决定字符串如何变成 token 序列</td><td>一个 token 不总是一个词</td></tr>
+<tr><td>语料</td><td>提供真实前缀与下一 token 标签</td><td>互联网文本的出现频率不等于事实可靠性</td></tr>
+<tr><td>decoder-only Transformer</td><td>根据可见前缀计算下一 token 分布</td><td>结构本身不决定什么答案是“有帮助”的</td></tr>
+<tr><td>负对数似然</td><td>提高观察到的真实 token 概率</td><td>损失低不保证在每个应用任务上好</td></tr>
+</tbody></table></div>
+<p>语料筛选、重复数据处理、词表设计、上下文长度与参数规模会影响能学到的模式及成本。对研究论文，先确认它使用什么数据、什么 token 化、什么架构，再看它是否真的改变了训练目标。[<a href="https://arxiv.org/abs/2005.14165">GPT-3 原论文，第 2–3 节</a>]</p>
+
+<h2>5. 预训练后的生成怎样进行？</h2>
+<p>给定提示，模型输出下一 token 的概率分布。可以选概率最大的 token，也可以按调整后的分布抽样；温度是改变 logits 尖锐程度的一种办法：</p>
+<div class="formula">p<sub>τ</sub>(j)=softmax(aⱼ/τ)</div>
+<p>τ 较小通常让分布更集中，较大让它更平坦；随后把选出的 token 加入前缀继续生成。采样规则能改变输出形式，不能凭空给模型增加未学到的知识。预训练的目标是拟合文本续写分布，所以面对“请按我的要求回答”时仍可能续写不合意的内容；第 13、14 章讨论怎样用额外数据改变这种行为。</p>
+
+<h2>第 11 章理解检查</h2><ol><li>为什么已有文本能提供下一 token 的训练标签，而不需人工逐位置标注？</li><li>若真实序列的三个条件概率是 0.5、0.8、0.25，联合概率与负对数似然各是多少？</li><li>“下一 token 预测训练得好”为什么不自动推出“按指令回答且事实正确”？</li><li>预训练 NLL、Transformer 架构与采样温度分别属于目标、结构、还是推理规则？</li></ol>
+<p class="small"><a href="0024-transformer-complete-chapter.html">第 10 章</a> · <a href="0026-peft-complete-chapter.html">第 12 章：PEFT</a> · <a href="../COURSE.md">课程路线</a></p>
+</main></body></html>

@@ -1,0 +1,26 @@
+<!doctype html>
+<html lang="zh-CN"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>第三章 · 贝叶斯网络与朴素贝叶斯</title><link rel="stylesheet" href="../assets/course.css"></head><body><main>
+<div class="eyebrow">生成式人工智能 · 第 3 章 / 第 2 节 · 约 15 分钟</div><h1>贝叶斯网络怎样简化联合分布？</h1>
+<p class="lead">本节目标：分清“概率链式法则总是成立”与“朴素贝叶斯额外假设条件独立”。这也是研究生成模型时判断模型假设的基本功。</p>
+
+<h2>1. 从三件事的联合概率开始</h2>
+<p>令 Y 表示邮件类别，X₁ 表示是否含“优惠”，X₂ 表示是否含“折扣”。想完整描述它们，就要给每一种组合一个联合概率 p(Y,X₁,X₂)。概率链式法则总能把它写成：</p>
+<div class="formula">p(Y,X₁,X₂)=p(Y)·p(X₁|Y)·p(X₂|Y,X₁)</div>
+<p>最后一项依赖 Y 和 X₁：即使知道邮件是垃圾邮件，“优惠”是否出现仍可能影响“折扣”出现的可能性。这一步没有添加任何独立假设。</p>
+
+<h2>2. 贝叶斯网络：用箭头表示直接依赖</h2>
+<p>贝叶斯网络用<strong>有向无环图</strong>表示变量之间的直接依赖，并将联合分布写成每个变量在其父节点条件下的概率乘积。如果图是 Y→X₁、Y→X₂，那么联合分布是：</p>
+<div class="formula">p(Y,X₁,X₂)=p(Y)·p(X₁|Y)·p(X₂|Y)</div>
+<p>与上一式相比，最后一项少了 X₁。这意味着在<strong>给定 Y 后</strong>，X₁ 和 X₂ 被假设为条件独立。图中的“无环”表示不能沿箭头绕一圈回到原变量；课程纪要中的“有效图”应校正为“有向无环图”。[<a href="https://ai.stanford.edu/~koller/Papers/Koller%2Bal%3ASRL07.pdf">Koller 等，有向图模型</a>]</p>
+
+<h2>3. 朴素贝叶斯的“朴素”在哪里？</h2>
+<p>朴素贝叶斯把类别 Y 放在中心，令各个输入特征 Xⱼ 在已知 Y 时彼此独立：</p>
+<div class="formula">p(Y,X₁,…,Xₙ)=p(Y)·∏ⱼ p(Xⱼ|Y)</div>
+<p>这样无须为所有单词组合估计概率，只需估计类别比例和每个词在各类别下出现的概率。看到新邮件后，用贝叶斯公式算 p(Y|X₁,…,Xₙ) 完成分类。[<a href="https://cs229.stanford.edu/notes_archive/cs229-notes2.pdf">Stanford CS229 讲义</a>]</p>
+<div class="card accent"><p><strong>最易混淆：</strong>条件独立不是说“优惠”和“折扣”总体上毫无关系。它说的是：如果已经固定类别 Y，知道“优惠”是否出现，不再改变模型对“折扣”的概率判断。真实语言中这个假设通常不完全成立，所以它是简化模型的选择，不是自然定律。</p></div>
+<p>逻辑回归则直接估计 p(Y|X)，不需要建立 p(X|Y)，也不使用上述条件独立假设。不过标准逻辑回归的 logit 是输入特征的线性组合；若要显式表达复杂特征交互，仍需设计特征或换更灵活的模型。这里的对比是<strong>模型假设不同</strong>，不是一个模型天然总比另一个好。</p>
+
+<h2>理解检查</h2><ol><li>链式法则中的 p(X₂|Y,X₁) 为什么在朴素贝叶斯里变为 p(X₂|Y)？这是数学恒等式还是额外假设？</li><li>“给定邮件类别后，‘优惠’和‘折扣’独立”是否意味着在所有邮件里这两个词总体独立？</li><li>回顾上节：q 是模型生成猫的概率；用样本训练 q 时，实际计算并降低的量是什么？</li></ol>
+<p>请回答后再继续；有任何一步不清楚，直接问我。</p>
+<p class="small"><a href="0006-divergence-and-generation.html">上一节</a> · <a href="../COURSE.md">课程路线</a> · 主要阅读：<a href="https://cs229.stanford.edu/notes_archive/cs229-notes2.pdf">CS229 朴素贝叶斯讲义前半部分</a></p>
+</main></body></html>

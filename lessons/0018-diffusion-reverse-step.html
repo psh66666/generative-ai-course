@@ -1,0 +1,39 @@
+<!doctype html>
+<html lang="zh-CN"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>第八章 · 反向去噪一步到底做什么？</title><link rel="stylesheet" href="../assets/course.css"><script src="../assets/diffusion-reverse-demo.js" defer></script></head><body><main>
+<div class="eyebrow">生成式人工智能 · 第 8 章 / 第 2 节 · 约 25 分钟</div>
+<h1>反向去噪一步到底做什么？</h1>
+<p class="lead">上一节你说“生成只能一步一步算高斯”，方向对了。本节把这句话拆清楚：模型预测当前图像中的噪声，据此确定<strong>上一时刻可能在哪附近</strong>；然后从该步的条件分布中取一个样本。</p>
+
+<h2>1. 为什么不能直接把加过的噪声倒放？</h2>
+<p>假如原始数据只可能是 −2 或 2，正向加噪后观察到 0：它可能由 −2 加正噪声得到，也可能由 2 加负噪声得到。仅凭现在的 0，不存在一份可读出的“当初真实噪声记录”。在真正生成时，我们甚至没有一张已经走过正向路径的原图。</p>
+<p>所以反向过程要学习的是条件分布 <strong>pθ(xₜ₋₁|xₜ)</strong>：给定当前 xₜ，较少噪声的 xₜ₋₁ 可能是什么。基础 DDPM 将这一步建模为高斯分布，其均值由网络决定，方差按设计给定。[<a href="https://arxiv.org/pdf/2006.11239">DDPM 原论文，第 2 节与式 (1)</a>]</p>
+
+<h2>2. 训练时为什么知道怎样教这一“反向一步”？</h2>
+<p>训练时手上有真实 x₀。我们可以问一个比生成时更容易回答的问题：<strong>给定 x₀ 和加噪后的 xₜ，中间的 xₜ₋₁ 会落在哪里？</strong>根据贝叶斯公式与正向链的马尔可夫性质：</p>
+<div class="formula">q(xₜ₋₁ | xₜ, x₀) ∝ q(xₜ | xₜ₋₁) · q(xₜ₋₁ | x₀)</div>
+<p>右边两个分布都是已知的高斯：一项规定 xₜ₋₁ 怎样变成 xₜ，另一项规定 x₀ 怎样变到 t−1。它们相乘后还是高斯。这个<strong>训练时可计算的后验</strong>帮助我们推导反向一步的目标；生成时 x₀ 未知，模型必须凭训练学到的规律来近似。[<a href="https://arxiv.org/pdf/2006.11239">DDPM 原论文，式 (5)–(7)</a>]</p>
+
+<h2>3. 从预测噪声得到反向均值</h2>
+<p>模型输入 xₜ 和时间 t，输出它认为当前图像含有的噪声 εθ(xₜ,t)。记 αₜ=1−βₜ、ᾱₜ=∏ₛ₌₁ᵗαₛ。把模型的噪声估计代入正向公式，可先得到一个“干净图像”的估计：</p>
+<div class="formula">x̂₀ = [xₜ − √(1−ᾱₜ) · εθ(xₜ,t)] / √ᾱₜ</div>
+<p>但一步去噪的目标是 xₜ₋₁，<strong>不是立刻跳到 x̂₀</strong>。把 x̂₀ 代入上面的高斯后验均值并整理，得到模型用于第 t 步的均值：</p>
+<div class="formula">μθ(xₜ,t) = [xₜ − βₜ·εθ(xₜ,t)/√(1−ᾱₜ)] / √αₜ</div>
+<p>因此“预测噪声”并不意味着把 εθ 整个从 xₜ 减去；还要按该时间点的噪声强度计算正确的步长。[<a href="https://arxiv.org/pdf/2006.11239">DDPM 原论文，式 (7)、(11)</a>]</p>
+
+<h2>4. 为什么均值之外还要抽一份新噪声？</h2>
+<p>μθ 是较少噪声状态的<strong>条件均值</strong>，不是唯一可能的 xₜ₋₁。基础 DDPM 在 t&gt;1 时从该步高斯分布采样：</p>
+<div class="formula">xₜ₋₁ = μθ(xₜ,t) + σₜ · ξ，　ξ ∼ N(0,I)</div>
+<p>这里的 ξ 是<strong>反向采样时新抽的随机数</strong>；它与正向训练时用于造 xₜ 的 ε 是两回事。选择不同 ξ，会从同一个均值附近得到不同的合理中间状态。原始 DDPM 算法在最后一步 t=1 取 ξ=0。[<a href="https://arxiv.org/pdf/2006.11239">DDPM 原论文，算法 2</a>]</p>
+
+<h2>5. 用上一节的数字走一步</h2>
+<p>仍设 x₀=2、x₂=1。这次令 α₁=α₂=0.8，于是 ᾱ₂=0.64、β₂=0.2；前一节的正向式表明这组数对应一次 ε=−1。假设模型在 t=2 也预测 εθ=−1，那么 x̂₀=2，但反向<strong>一步</strong>的均值是：</p>
+<div class="formula">μθ(x₂,2) = [1 − 0.2×(−1)/0.6] / √0.8 ≈ 1.49</div>
+<p>这一步的中心从 1 朝较清晰的 2 移动，但尚未直接到 2。这个玩具设置中可取 σ₂=1/3；若新抽到 ξ=0.3，得到 x₁≈1.49+(1/3)×0.3=1.59。下一步才从 x₁ 继续生成 x₀。这个新抽出的 x₁ 不要求等于某次正向加噪实际经过的 x₁。</p>
+<div class="card demo accent" data-reverse-demo><strong>动手试：两个“噪声”扮演不同角色</strong><label for="reverse-estimate">模型对当前噪声的预测 εθ：<output data-estimate-label></output></label><input id="reverse-estimate" data-noise-estimate type="range" min="-2" max="2" step="0.1" value="-1"><label for="reverse-fresh">反向采样时新抽的 ξ：<output data-fresh-label></output></label><input id="reverse-fresh" data-fresh-noise type="range" min="-2" max="2" step="0.1" value="0.3"><p>估计干净值 x̂₀：<output data-estimated-clean></output><br>反向一步的均值 μθ：<output data-reverse-mean></output><br>反向抽样得到 x₁：<output data-previous-sample></output></p><p class="small">先只调 εθ，再只调 ξ：哪个会移动分布中心？哪个只会改变这次抽样落在中心的哪一侧？</p></div>
+
+<details class="card"><summary><strong>进阶推导：高斯相乘为何得到这个均值？</strong></summary><p>由正向公式，q(xₜ₋₁|x₀)=N(√ᾱₜ₋₁x₀,(1−ᾱₜ₋₁)I)，而 q(xₜ|xₜ₋₁)=N(√αₜxₜ₋₁,βₜI)。把两项概率密度相乘，保留与 xₜ₋₁ 有关的负对数：</p><div class="formula">‖xₜ₋₁−√ᾱₜ₋₁x₀‖²/[2(1−ᾱₜ₋₁)]<br>+ ‖xₜ−√αₜxₜ₋₁‖²/(2βₜ)</div><p>对 xₜ₋₁ 配方，后验均值为</p><div class="formula">μ̃ₜ = [√ᾱₜ₋₁·βₜ/(1−ᾱₜ)]x₀<br>+ [√αₜ·(1−ᾱₜ₋₁)/(1−ᾱₜ)]xₜ</div><p>后验方差为 β̃ₜ=βₜ(1−ᾱₜ₋₁)/(1−ᾱₜ)。在均值中以 x̂₀ 替换未知 x₀，再用 ᾱₜ=αₜᾱₜ₋₁ 与 βₜ=1−αₜ 合并系数，就得到上面的 μθ 公式。基础模型的反向采样方差 σₜ²可按设计选择；它不必在所有实现中等于 β̃ₜ。[<a href="https://arxiv.org/pdf/2006.11239">DDPM 原论文，式 (6)–(7)、(11)</a>]</p></details>
+
+<h2>本节理解检查</h2><ol><li>在上面的例子里，为什么模型即使准确预测 εθ=−1，反向一步的均值仍是约 1.49，而不是直接等于干净值 2？</li><li>预测噪声 εθ 与反向新抽噪声 ξ，各自起什么作用？如果只改变 ξ，反向分布的中心会不会移动？</li><li>训练时用于推导的 q(xₜ₋₁|xₜ,x₀) 知道 x₀；实际生成时有 x₀ 吗？模型如何弥补这一点？</li></ol>
+<p>有哪一步跳得太快，请直接指出；我们可以把高斯相乘的配方再展开成一维算式。</p>
+<p class="small"><a href="0017-diffusion-forward-and-training.html">上一节：正向加噪</a> · <a href="0019-diffusion-loss-from-elbo.html">下一节：从 ELBO 到噪声损失</a> · <a href="../reference/diffusion-notation.html">符号速查</a> · <a href="../COURSE.md">课程路线</a> · 主要阅读：<a href="https://arxiv.org/abs/2006.11239">DDPM 原论文</a></p>
+</main></body></html>

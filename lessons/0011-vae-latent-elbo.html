@@ -1,0 +1,29 @@
+<!doctype html>
+<html lang="zh-CN"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>第五章 · VAE 为什么需要潜变量与 ELBO？</title><link rel="stylesheet" href="../assets/course.css"></head><body><main>
+<div class="eyebrow">生成式人工智能 · 第 5 章 / 第 1 节 · 约 17 分钟</div><h1>VAE 为什么需要潜变量与 ELBO？</h1>
+<p class="lead">本节目标：用“先产生潜在因素，再产生样本”的故事理解 VAE，并看清 ELBO 的重建项与 KL 项各约束什么。</p>
+
+<h2>1. 从可见的 x 到看不见的 z</h2>
+<p>自回归模型按顺序直接预测样本的元素。VAE 走另一条路线：先设一个隐藏变量 z，代表生成样本时可用的潜在因素；再由 z 生成图像 x。训练数据只有 x，z 没有随图片一起提供，因此叫<strong>潜变量</strong>。z 不必与人能命名的“姿态”“颜色”一一对应。</p>
+<div class="flow"><span>先验 p(z)，常取标准高斯</span><b>→</b><span>采样 z</span><b>→</b><span>解码器 pθ(x|z)</span><b>→</b><span>采样 x</span></div>
+<p>这才是 VAE 的生成方向。给定潜变量 z，解码器描述各种 x 的概率；生成新样本时，从先验 p(z) 抽 z，再按解码器产生 x。[<a href="https://arxiv.org/abs/1312.6114">Kingma 与 Welling，VAE 原论文</a>]</p>
+
+<h2>2. 为什么训练时还要编码器？</h2>
+<p>训练时已经看见某张图 x，需要推断哪些 z 可能解释它。真正后验 pθ(z|x) 往往难算，于是训练一个编码器 qφ(z|x) 来近似。训练路径是：</p>
+<div class="flow"><span>真实 x</span><b>→</b><span>编码器 qφ(z|x)</span><b>→</b><span>采样 z</span><b>→</b><span>解码器 pθ(x|z)</span></div>
+<p>编码器主要帮助训练与推断；生成一张全新图片时，可以直接从 p(z) 抽样，不必先有一张输入图。</p>
+<div class="card accent"><p><strong>判断从哪里抽 z，先问有没有输入图片 x：</strong></p><p>重建一张已有图片：有 x → 用 qφ(z|x) 找可能解释它的 z → 解码。</p><p>无条件生成一张新图片：尚无 x → 从事先约定的 p(z) 抽 z → 解码。</p><p>若要生成“与某张已有图相似”的变体，则属于有 x 的条件任务，可以从 qφ(z|x) 抽样。不要把它与无条件生成混为一谈。</p></div>
+
+<h2>3. 为什么要优化下界？</h2>
+<p>理想目标是最大化真实图像的对数概率 log pθ(x)。但 pθ(x)=∫pθ(x|z)p(z)dz，需要对所有可能的 z 求和或积分，通常难直接计算。引入近似后验 qφ(z|x) 后，有一个精确恒等式：</p>
+<div class="formula">log pθ(x) = ELBO(x) + KL[qφ(z|x) ‖ pθ(z|x)]</div>
+<p>右边 KL 非负，因此 ELBO 不超过 log pθ(x)，叫<strong>证据下界</strong>。最大化这个可计算、可估计的下界，能帮助训练生成模型；下界和真实目标之间的差距就是编码器对真实后验的近似误差。</p>
+<p>把 ELBO 展开成训练时最常见的两项：</p>
+<div class="formula">ELBO(x) = E[z∼qφ(z|x)] log pθ(x|z) − KL[qφ(z|x) ‖ p(z)]</div>
+<div class="card"><p><strong>重建项：</strong>从编码器给出的 z 出发，解码器给原图 x 多高概率？越高越好。</p><p><strong>KL 项：</strong>每张图的编码分布 qφ(z|x) 与我们约定的先验 p(z) 相差多远？ELBO 中减去它，因此训练倾向于不让二者相距过远。</p></div>
+<p>这两项会互相拉扯：只追求重建，编码区域可能与先验抽样区域不吻合；只压低 KL，编码器也可能让 z 几乎不含关于 x 的信息。KL 是约束，不是“潜空间必然平滑、无空洞且可解释”的保证。[<a href="https://arxiv.org/abs/1312.6114">VAE 原论文</a>；<a href="https://arxiv.org/abs/1901.05534">后验坍塌研究</a>]</p>
+
+<h2>理解检查</h2><ol><li>生成一张全新图片时，z 从 p(z) 还是 qφ(z|x) 取？为什么？</li><li>训练时为什么需要 qφ(z|x) 这个编码器？</li><li>ELBO 的重建项与 KL 项分别约束什么？若只让 KL 接近 0，是否能保证生成图像好？</li></ol>
+<p>请先回答这三题；理解后我们再推重参数化。任何公式看不清，可直接问我。</p>
+<p class="small"><a href="0010-order-and-exposure-bias.html">复习第 4 章</a> · <a href="../COURSE.md">课程路线</a> · 主要阅读：<a href="https://arxiv.org/abs/1312.6114">Auto-Encoding Variational Bayes 第 2 节</a></p>
+</main></body></html>

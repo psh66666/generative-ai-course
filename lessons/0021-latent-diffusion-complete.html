@@ -1,0 +1,43 @@
+<!doctype html>
+<html lang="zh-CN"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>第九章：潜空间扩散与文本生成图片</title><link rel="stylesheet" href="../assets/course.css"></head><body><main>
+<div class="eyebrow">生成式人工智能 · 第 9 章完整课件</div><h1>潜空间扩散：为什么先压缩图片再去噪？</h1>
+<p class="lead">第 8 章的 DDPM 在图片像素上逐步去噪。如果图片很大，每一步都让网络处理全部像素，计算成本高。潜空间扩散模型（LDM）先学一套压缩与还原图片的工具，再在较小的潜空间运行同一套扩散原理。[<a href="https://arxiv.org/html/2112.10752v2">LDM 原论文，第 1、3 节</a>]</p>
+
+<h2>1. 一张图的完整路线</h2>
+<div class="flow"><span>真实图片 x</span><b>→ 编码器 E</b><span>潜表示 z₀</span><b>→ 加噪</b><span>zₜ</span><b>→ 学习去噪</b><span>z₀</span><b>→ 解码器 D</b><span>图片 x̂</span></div>
+<p>这条路线有两个不同学习任务。<strong>压缩阶段</strong>训练 E 和 D，使 D(E(x)) 尽量保留图像的重要内容。<strong>生成阶段</strong>训练扩散模型学习这些潜表示 z₀ 的分布。生成新图时，不需要先拿一张真实图片进编码器：直接从潜空间高斯噪声 z<sub>T</sub> 开始去噪，再交给 D 输出图片。</p>
+
+<h2>2. “潜空间”究竟省在哪里？</h2>
+<p>假设一张 RGB 图为 512×512×3，约 79 万个数。如果一种编码器把它映射到 64×64×4 的潜表示，只有约 1.6 万个数；两者元素数相差约 48 倍。这只是说明量级的玩具形状，实际耗时不会严格按 48 倍缩放。关键在于：原本每次去噪都处理大图，现在主要在更小的表示中计算，最后只需一次解码。[<a href="https://arxiv.org/html/2112.10752v2">LDM 原论文，第 3.1、3.2 节</a>]</p>
+<p>压缩不能无限加大。若 E 丢了文字笔画等信息，D 无法凭空恢复。LDM 在“降低扩散计算量”和“保住重建细节”之间选压缩程度。它的第一阶段可以使用轻度 KL 正则或向量量化，<strong>不能把所有 LDM 编码器都当成标准 VAE</strong>。[<a href="https://arxiv.org/html/2112.10752v2">LDM 原论文，第 3.1、4.1 节</a>]</p>
+<p>编码器与解码器单独训练好后，只能把<strong>已有</strong>图片压缩再还原。要凭空生成新图，还需学“哪些潜表示像真实图片编码出的 z₀”。第二阶段的扩散模型承担这个分布学习任务。换句话说，E/D 解决表示与重建，扩散过程解决新样本从哪里来。</p>
+
+<h2>3. 扩散公式有什么变化？</h2>
+<p>只是把第 8 章的像素变量 x 换成潜变量 z。先把真实图编码为 z₀=E(x)，再随机抽时间 t 和噪声 ε：</p>
+<div class="formula">zₜ=√ᾱₜ z₀+√(1−ᾱₜ) ε<br>L<sub>LDM</sub>=E[‖ε−εθ(zₜ,t)‖²]</div>
+<p>训练时知道 z₀ 和自己抽的 ε，因此能直接造 zₜ 并监督预测。生成时从 z<sub>T</sub>∼N(0,I) 开始，按学到的反向过程一步步得到新的 z₀，再算 x=D(z₀)。<strong>D 不负责从随机高斯噪声独立生成完整图片；扩散模型先生成合适的 z₀。</strong>[<a href="https://arxiv.org/html/2112.10752v2">LDM 原论文，式 (1)、(2)</a>]</p>
+<p><strong>这条损失是怎样来的？</strong>第 8 章已推导：反向高斯的变分 KL 在固定方差时是均值平方差，用预测噪声参数化均值后成为带权的噪声平方差，常见实现再做时间重加权。LDM 没换一个全新的概率理论；它把同样的推导用在 z₀=E(x) 所形成的潜空间数据分布上。编码器决定这个数据分布的表示，扩散网络学习在这个表示里逆向去噪。</p>
+
+<h2>4. 文本怎样控制图片？</h2>
+<p>“一只穿雨衣的猫”不是图像潜变量。文本编码器先把句子变成一组语义向量 c。去噪网络在处理 zₜ 时通过<strong>交叉注意力</strong>读取这些向量：Query 来自当前图像潜表示的特征，Key 和 Value 来自文本特征。</p>
+<div class="formula">Q=W<sub>Q</sub>·图像潜特征，K=W<sub>K</sub>·文本特征，V=W<sub>V</sub>·文本特征<br>Attention(Q,K,V)=softmax(QKᵀ/√d)·V</div>
+<p>于是不同图像位置能读取与自己有关的文本信息。训练目标变成预测 εθ(zₜ,t,c)，即“给定当前带噪潜表示、时间和文本，噪声是什么”。这里的注意力是<strong>图像特征对文本特征的交叉注意力</strong>，与语言模型在同一串 token 内做自注意力不同。LDM 原论文也支持其他条件，如布局和语义图。[<a href="https://arxiv.org/html/2112.10752v2">LDM 原论文，第 3.3 节与式 (3)</a>]</p>
+
+<h2>5. 条件引导为什么能让提示词更强？</h2>
+<p>一种常用办法是训练模型既能在有条件 c 时预测噪声，也能在条件缺失时预测。采样时组合两次预测：</p>
+<div class="formula">ε<sub>guide</sub>=ε<sub>uncond</sub>+w(ε<sub>cond</sub>−ε<sub>uncond</sub>)</div>
+<p>w=1 时得到条件预测；w&gt;1 会沿“条件与无条件的差”进一步强调条件。强引导可能提高符合提示词的程度，也可能损失多样性或造成伪影，不能机械地认为越大越好。这叫无分类器引导（CFG），并不需要另训一台图像分类器。[<a href="https://arxiv.org/abs/2207.12598">Classifier-Free Diffusion Guidance 原论文</a>]</p>
+
+<h2>6. 与前几章如何区分？</h2>
+<div class="table-wrap"><table><thead><tr><th>方法</th><th>新样本从哪里来</th><th>潜表示或概率的关键</th></tr></thead><tbody>
+<tr><td>VAE</td><td>先验抽 z，再由解码器一次生成 x</td><td>用近似后验 q(z|x) 和 ELBO 训练</td></tr>
+<tr><td>像素扩散</td><td>像素空间噪声，逐步去噪</td><td>网络多次处理整张图</td></tr>
+<tr><td>潜空间扩散</td><td>潜空间噪声，逐步去噪，再解码</td><td>先用编码器学习可还原的低维表示</td></tr>
+<tr><td>CLIP</td><td>本身没有逐步生成路线</td><td>学习图文对应与表征，可用于条件或评估</td></tr>
+</tbody></table></div>
+<p>LDM 的编码器/解码器让人联想到 VAE，但生成新图时的潜变量分布主要由<strong>潜空间扩散过程</strong>学习；CLIP 的图文匹配也不是扩散采样器。各模块可能组合，但各自负责的问题不同。</p>
+
+<h2>第 9 章理解检查</h2><ol><li>训练 LDM 时，真实图片 x 先经过哪个模块？扩散网络实际预测的是像素噪声还是潜变量中的噪声？</li><li>无输入生成时，流程从 z<sub>T</sub> 到图片 x 依次经过哪些步骤？此时是否需要真实图片的编码器输出？</li><li>文本条件的交叉注意力中，Q 与 K/V 各从哪里来？</li><li>如果第一阶段的压缩丢了重要细节，第二阶段去噪训练得再好，也会有什么上限？</li></ol>
+<p>请先回答这四题再把第 9 章标记为掌握。你也可以先使用下面的综合讲解和测试题复习。</p>
+<p class="small"><a href="0020-diffusion-complete-chapter.html">上一章：DDPM 完整逻辑</a> · <a href="0024-transformer-complete-chapter.html">下一章：Transformer</a> · <a href="0022-generative-ai-integrated-guide.html">跨主题讲解</a> · <a href="0023-generative-ai-concept-test.html">概念测试</a> · <a href="../COURSE.md">课程路线</a></p>
+</main></body></html>

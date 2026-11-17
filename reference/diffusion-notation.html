@@ -1,0 +1,7 @@
+<!doctype html>
+<html lang="zh-CN"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>扩散模型符号速查</title><link rel="stylesheet" href="../assets/course.css"></head><body><main>
+<div class="eyebrow">生成式人工智能 · 速查</div><h1>扩散模型的两条路</h1>
+<div class="card"><h2>正向：训练时造题</h2><p>x₀ 是真实数据；xₜ 是加噪 t 步后的数据；βₜ 是第 t 步噪声强度；αₜ=1−βₜ；ᾱₜ=∏ₛ₌₁ᵗ αₛ。</p><div class="formula">xₜ = √ᾱₜ · x₀ + √(1−ᾱₜ) · ε，ε∼N(0,I)</div><p>给定真实 x₀ 与自己抽出的 ε，可以直接得到任意时间点的训练样本 xₜ。</p></div>
+<div class="card"><h2>反向：生成时采样</h2><p>先抽 x<sub>T</sub>∼N(0,I)，再用学得的 εθ(xₜ,t) 引导 xₜ→xₜ₋₁，重复到 x₀。此时没有真实 x₀，也没有已知的“正确噪声”。</p></div>
+<p class="small"><a href="../lessons/0017-diffusion-forward-and-training.html">返回课程</a> · 来源：<a href="https://arxiv.org/abs/2006.11239">DDPM 原论文</a></p>
+</main></body></html>

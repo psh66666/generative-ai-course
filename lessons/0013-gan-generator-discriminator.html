@@ -1,0 +1,23 @@
+<!doctype html>
+<html lang="zh-CN"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>第六章 · GAN 的生成器与判别器</title><link rel="stylesheet" href="../assets/course.css"></head><body><main>
+<div class="eyebrow">生成式人工智能 · 第 6 章 / 第 1 节 · 约 15 分钟</div><h1>谁负责画图，谁负责给反馈？</h1>
+<p class="lead">GAN 有两个网络：生成器 G 把随机噪声变成假样本；判别器 D 尝试分辨真实样本和生成样本。学完本节，你应能描述一次训练循环，以及训练后真正负责出图的是谁。</p>
+
+<h2>1. 从随机噪声到假图片</h2>
+<div class="flow"><span>z∼p(z)</span><b>→</b><span>生成器 Gθ(z)</span><b>→</b><span>假图片 x̃</span><b>→</b><span>判别器 Dφ(x̃)</span></div>
+<p>生成器 Gθ 学一个从噪声 z 到图像的映射。不同 z 会产生不同图片，因而 Gθ 隐式决定了一个生成分布 P<sub>G</sub>。原始 GAN 不要求像 VAE 那样由解码器给任意真实图 x 计算显式概率 pθ(x|z)。判别器 Dφ(x) 则输出“这张图来自真实数据”的估计分数。[<a href="https://arxiv.org/abs/1406.2661">GAN 原论文</a>]</p>
+
+<h2>2. 训练时两个网络的目标相反</h2>
+<div class="card"><p><strong>训练判别器：</strong>给它真实图，期望 D(x) 高；给它 G 生成的假图，期望 D(G(z)) 低。</p><p><strong>训练生成器：</strong>让它改进 G(z)，使判别器更难把假图判为假。生成器的更新信号从 D 对假图的评估沿计算路径传回 G。</p></div>
+<p>典型做法是轮流更新判别器和生成器参数：更新 D 时暂时固定 G；更新 G 时利用当前 D 的反馈。交替更新是一种常见训练安排，并非“同一轮同时计算梯度就一定失败”。原始极小极大目标写作：</p>
+<div class="formula">min G max D { E[x∼Pdata] log D(x) + E[z∼p(z)] log(1−D(G(z))) }</div>
+<p>式子前半鼓励 D 给真实图高分，后半鼓励 D 给假图低分；G 反向争取让假图得到高分。实践中常用另一种生成器损失来改善早期梯度，所以“GAN 训练”不能只机械背这一行公式。[<a href="https://arxiv.org/pdf/1406.2661">GAN 原论文，第 3 节</a>]</p>
+
+<h2>3. JS 在哪里，生成又在哪里？</h2>
+<p>你在第 3 章已学过：原始 GAN 的理论分析中，如果每次都把 D 训练到对当前 G 的最优状态，目标可写成常数加 2·JS(Pdata,P<sub>G</sub>)。这说明理想目标会在两个分布一致时达到最优。<strong>实际更新时，G 接到的是 D 的梯度；它不直接计算真实 JS。</strong>[<a href="https://arxiv.org/pdf/1406.2661">GAN 原论文，第 4.1 节</a>]</p>
+<div class="card accent"><p><strong>训练后如何出新图？</strong>再从 p(z) 抽一个噪声，送进 Gθ，得到新图。D 是训练时的反馈器，普通生成流程不必再经过 D。</p></div>
+
+<h2>理解检查</h2><ol><li>在 GAN 中，G 和 D 各接收什么输入、输出什么？谁负责生成图片？</li><li>更新 G 时，帮助它知道怎样改参数的信号来自哪里？实际训练是否需要先算出真实的 JS？</li><li>训练完成后，只想生成一张新图片，z、G、D 各怎样参与？</li></ol>
+<p>请先回答；下一节再讲判别器过强时的梯度问题和梯度惩罚究竟属于哪一种 GAN 改进。</p>
+<p class="small"><a href="0012-vae-reparameterization.html">复习第 5 章</a> · <a href="../COURSE.md">课程路线</a> · 主要阅读：<a href="https://arxiv.org/abs/1406.2661">GAN 原论文摘要与图 1</a></p>
+</main></body></html>

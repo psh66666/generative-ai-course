@@ -1,0 +1,6 @@
+<!doctype html>
+<html lang="zh-CN"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>速查 · 序列建模</title><link rel="stylesheet" href="../assets/course.css"></head><body><main>
+<div class="eyebrow">课程速查 · 第 1 章</div><h1>序列建模</h1>
+<div class="card"><p><strong>核心问题：</strong>当前预测如何利用序列中较早位置的信息？</p><p><strong>普通 RNN：</strong>逐步更新状态；长距离反向传播时，梯度可能衰减或放大。</p><p><strong>LSTM：</strong>用门控制记忆状态的保留和写入。带遗忘门的版本：cₜ = fₜ ⊙ cₜ₋₁ + iₜ ⊙ gₜ；保留旧记忆时，fₜ 接近 1、iₜ 接近 0。</p><p><strong>Attention：</strong>Q 与 K 算相关性，权重作用于 V。因果掩码让当前位置只能读取自己和更早的位置。</p><p><strong>KV 缓存：</strong>逐词推理时复用前文已算出的 K/V；当前步仍需与这些 K/V 做注意力计算。</p></div>
+<p class="small">参考：<a href="https://sferics.idsia.ch/pub/juergen/FgGates-NC.pdf">带遗忘门的 LSTM</a> · <a href="https://arxiv.org/abs/1706.03762">Transformer</a>。<a href="../lessons/0002-gates-and-attention.html">返回课件</a></p>
+</main></body></html>

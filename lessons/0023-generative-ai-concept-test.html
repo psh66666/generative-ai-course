@@ -1,0 +1,66 @@
+<!doctype html>
+<html lang="zh-CN"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>生成式人工智能概念测试：30 题及逐题答案</title><link rel="stylesheet" href="../assets/course.css"></head><body><main>
+<div class="eyebrow">生成式人工智能 · 独立概念测试课件</div><h1>30 道概念题：每题下方附答案</h1>
+<p class="lead">建议先遮住每题下方答案，自己写一句理由，再核对。题目重点是判断训练目标、概率方向、采样路径和模型结构的关系，而不是记缩写。</p>
+
+<h2>一、贝叶斯</h2><ol>
+<li><p>某类 A 的先验是 0.2，观察到证据 x 的概率 p(x|A)=0.6；另一类 B 的先验是 0.8，p(x|B)=0.05。看到 x 后，p(A|x) 是多少？</p><div class="answer"><strong>答案：</strong>0.75。两类未归一化分数为 0.2×0.6=0.12 和 0.8×0.05=0.04；归一化后 0.12/(0.12+0.04)=0.75。</div></li>
+<li><p>朴素贝叶斯假设 X₁、X₂ 在总体上独立吗？</p><div class="answer"><strong>答案：</strong>不假设。它假设给定类别 Y 后条件独立，即 p(x₁,x₂|y)=p(x₁|y)p(x₂|y)；不同类别混合后，两特征仍可相关。</div></li>
+<li><p>“看见一张图判断它是不是猫”和“指定猫类生成一张图”，分别主要涉及哪两个条件分布？</p><div class="answer"><strong>答案：</strong>前者 p(猫|图)，后者 p(图|猫)。若要从联合生成路线看，还可先抽类别 p(猫)，再按 p(图|猫) 抽图。</div></li>
+</ol>
+
+<h2>二、自回归模型</h2><ol start="4">
+<li><p>写出三个 token 的联合概率 p(x₁,x₂,x₃) 的自回归分解；这里需要假设三个 token 独立吗？</p><div class="answer"><strong>答案：</strong>p(x₁)p(x₂|x₁)p(x₃|x₁,x₂)。这是链式法则，不需要独立假设。</div></li>
+<li><p>训练样本是真实序列“小明 买 书”；若模型推理时输出“小明 卖”，下一步实际使用哪个前缀？训练这一样本预测第三词时又使用哪个前缀？</p><div class="answer"><strong>答案：</strong>推理用“小明 卖”；教师强制训练用真实的“小明 买”。错误输出可能改变后续预测的输入条件。</div></li>
+<li><p>模型给真实序列的概率是 0.04，这个样本的序列负对数似然是多少？训练中实际降低的是这个量还是 KL(Pdata‖Pmodel) 的精确数值？</p><div class="answer"><strong>答案：</strong>−log(0.04)。实际可计算并降低的是样本负对数似然；最小化数据到模型的 KL 是相应优化方向的分布解释，不需知道真实 Pdata 的完整密度。</div></li>
+</ol>
+
+<h2>三、VAE</h2><ol start="7">
+<li><p>已有图片 x 要重建时从哪里取 z？完全没有输入、要生成新图片时从哪里取 z？</p><div class="answer"><strong>答案：</strong>重建从编码器 qφ(z|x) 取；无输入生成从预先约定的先验 p(z) 取。没有 x 时不能直接使用依赖 x 的 qφ(z|x)。</div></li>
+<li><p>ELBO 的重建项和 KL 项各在回答什么问题？KL 变小是否一定说明 z 被充分利用？</p><div class="answer"><strong>答案：</strong>重建项看给定编码器抽出的 z 后解码器能否解释原图；KL 项看 qφ(z|x) 距先验 p(z) 多远。KL 小不保证 z 有用，模型可能出现后验坍塌。</div></li>
+<li><p>重参数化 z=μ+σε，固定 ε=−1，μ=2，σ 从 0.5 减到 0.3，z 从多少变到多少？这个写法为何有助于训练编码器？</p><div class="answer"><strong>答案：</strong>z 从 1.5 变到 1.7。把随机性放进与编码器参数无关的 ε 后，固定一次 ε 时 z 对 μ、σ 的变化明确可导，重建误差便可沿 z 回传到编码器。</div></li>
+</ol>
+
+<h2>四、GAN</h2><ol start="10">
+<li><p>训练完成后，生成一张图需要 G、D 中的哪些模块？G 的训练更新信号主要来自哪里？</p><div class="answer"><strong>答案：</strong>生成只需从先验抽 z 并运行 G(z)。训练 G 时的梯度来自判别器 D 对 G(z) 的反馈，不必显式计算真实 JS 散度。</div></li>
+<li><p>“GAN 实际每步都在数值计算并最小化 JS(Pdata‖PG)”对吗？</p><div class="answer"><strong>答案：</strong>不对。原始 GAN 的目标在判别器达到理想最优等条件下，可化为常数加 2 倍 JS；实际训练交替更新神经网络 G、D，使用各自损失的梯度。</div></li>
+<li><p>原始 GAN 的非饱和损失改的是 G 还是 D 的目标？WGAN-GP 梯度惩罚检查谁对什么输入的变化率？</p><div class="answer"><strong>答案：</strong>非饱和损失改 G 的更新目标。WGAN-GP 的梯度惩罚检查 critic 分数对输入样本的梯度范数；它属于另一套训练设计。</div></li>
+</ol>
+
+<h2>五、Flow</h2><ol start="13">
+<li><p>一维可逆变换把某小区间的长度放大 2 倍，对应区间的概率质量不变。目标空间的概率密度如何变化？</p><div class="answer"><strong>答案：</strong>密度减半。概率质量等于密度乘区间长度；长度加倍，密度须减半，变量替换公式中的导数负责修正。</div></li>
+<li><p>耦合层 z₁=x₁，z₂=2x₂+1。给定 z=(4,9)，x₂ 是多少？其 x→z 雅可比行列式是多少？</p><div class="answer"><strong>答案：</strong>x₂=(9−1)/2=4；行列式为 2。第一维不依赖 x₂，雅可比是三角形，行列式等于对角线乘积。</div></li>
+<li><p>连续十层耦合层都让第一维原样通过，能把先验第一维的分布变成另一种第一维分布吗？</p><div class="answer"><strong>答案：</strong>不能。第一维数值十层后仍原样通过，生成结果第一维仍保持先验第一维分布。需要交替变换不同维度。</div></li>
+</ol>
+
+<h2>六、Diffusion</h2><ol start="16">
+<li><p>取 x₀=2、ᾱₜ=0.64、训练时抽 ε=−1。直接加噪公式给出 xₜ 是多少？训练者为何知道预测目标？</p><div class="answer"><strong>答案：</strong>xₜ=0.8×2+0.6×(−1)=1。训练者自己抽了 ε，因此知道噪声标签；模型只接收 xₜ 和 t。</div></li>
+<li><p>ε、εθ、ξ 分别指什么？只改变 ξ 且保持 xₜ、t、εθ 不变，会改变反向高斯的中心吗？</p><div class="answer"><strong>答案：</strong>ε 是训练者正向加的真实噪声；εθ 是模型预测值，决定反向一步均值；ξ 是生成时新抽的随机数，改变这次样本位置，不改变已确定的均值。</div></li>
+<li><p>为什么 DDPM 常用的噪声预测 MSE 不能直接叫“精确负对数似然”？</p><div class="answer"><strong>答案：</strong>完整似然需积分全部中间路径；变分界把问题拆成终点、反向 KL 和最后重建项。中间 KL 经固定方差、均值参数化可写成带时间权重的噪声平方误差；常用简化 MSE 又改变了这些权重。</div></li>
+</ol>
+
+<h2>七、Transformer</h2><ol start="19">
+<li><p>在自注意力中，Q、K、V 分别用于什么？Q 与 K 都由 X 计算，是否因此可以把两者看成完全相同？</p><div class="answer"><strong>答案：</strong>Q 提出当前位置要匹配什么，K 提供被匹配的键，V 提供最终汇总的内容。Q、K 通常使用不同可学习投影，职责和参数不同，不能视为可互换。</div></li>
+<li><p>decoder-only 语言模型为什么要因果掩码？KV 缓存具体省去了什么，省不掉什么？</p><div class="answer"><strong>答案：</strong>因果掩码阻止当前位置读未来 token，符合逐 token 生成的条件概率。KV 缓存复用过去位置已算的 K/V；新位置仍要计算自己的投影、与历史 K 的注意力及后续网络运算。</div></li>
+<li><p>文本生成图片的交叉注意力中，若图像潜特征读取提示词信息，Q 和 K/V 应主要来自哪里？</p><div class="answer"><strong>答案：</strong>Q 来自图像潜特征；K/V 来自文本编码器的提示词特征。两边来源不同，所以是交叉注意力。</div></li>
+</ol>
+
+<h2>八、PEFT</h2><ol start="22">
+<li><p>一个 1024×1024 的线性层，全量更新有多少参数？LoRA 秩 r=8 时，若 ΔW=BA 且 A 为 8×1024、B 为 1024×8，新增可训练参数多少？</p><div class="answer"><strong>答案：</strong>全量为 1,048,576；LoRA 为 8×1024+1024×8=16,384，是该层全量参数的 1/64。这里只比较这一个矩阵的可训练参数，不等于整模型的总内存缩小 64 倍。</div></li>
+<li><p>LoRA 冻结基座 W 后，模型输出还能改变吗？QLoRA 是否把所有 4 位基座权重继续训练？</p><div class="answer"><strong>答案：</strong>能改变，因为输出包含可训练的 BAx。QLoRA 通常冻结量化后的基座，让梯度穿过它并训练 LoRA 参数；不是继续更新所有基座权重。</div></li>
+<li><p>“PEFT 节省可训练参数，因此训练的全部显存与计算必然按相同比例减少”对吗？</p><div class="answer"><strong>答案：</strong>不对。优化器状态与可训练权重相关，但激活、输入长度、前向计算以及梯度经过冻结基座等也占资源，不能用参数数目直接推出总成本比例。</div></li>
+</ol>
+
+<h2>九、LLM Post-training</h2><ol start="25">
+<li><p>预训练的下一 token 预测与 SFT 的指令回复训练，在目标和数据上主要有什么不同？</p><div class="answer"><strong>答案：</strong>两者都可用 token 负对数似然。预训练在广泛文本上学续写分布；SFT 在指令与理想回复样本上提高给定指令时生成目标回复的概率，通常只对回复 token 计损失。</div></li>
+<li><p>同一提示有回复 A 优于 B 的标注。奖励模型路线与 DPO 路线各怎样利用这份偏好？</p><div class="answer"><strong>答案：</strong>奖励模型路线先拟合能给 A 比 B 更高分的模型，再用其分数训练策略，并约束偏离参考策略。DPO 在其推导设定下直接用偏好对和参考策略优化语言模型，不必显式训练独立奖励模型和运行在线 RL。</div></li>
+<li><p>“LoRA 是 SFT 的下一阶段，DPO 是 LoRA 的替代品”对吗？</p><div class="answer"><strong>答案：</strong>不对。SFT/DPO 描述训练数据与目标；LoRA 描述参数怎样更新。可以用 LoRA 执行 SFT，也可以在合适设置下用它执行偏好训练。</div></li>
+</ol>
+
+<h2>十、跨主题综合</h2><ol start="28">
+<li><p>一个文本生成图片系统先用 E 把图片压成 z，再训练 εθ(zₜ,t,c)，生成后用 D(z₀) 得图。它主要属于哪类生成模型？文本如何进入去噪网络？</p><div class="answer"><strong>答案：</strong>潜空间扩散模型。E/D 负责压缩和解码，扩散网络学习潜空间分布；文本 c 可通过交叉注意力进入，图像潜特征提供 Q，文本特征提供 K/V。</div></li>
+<li><p>哪种方法在其模型假设下用雅可比精确计算数据密度？哪两种方法典型地借助变分界？GAN 的 JS 又在什么条件下出现？</p><div class="answer"><strong>答案：</strong>正规化流用变量替换公式精确算密度；VAE 和 DDPM 使用变分界。JS 出现在原始 GAN 的理想最优判别器分析中，而不是每步实际数值计算的训练损失。</div></li>
+<li><p>给一个研究论文，如何快速辨别“架构”“训练损失”“生成步骤”“参数更新方式”？以 decoder-only Transformer 经 LoRA 做 SFT 为例。</p><div class="answer"><strong>答案：</strong>Transformer 是网络架构；SFT 的目标通常是理想回复 token 的条件负对数似然；生成时按自回归逐 token 采样；LoRA 决定冻结基座并训练低秩增量。四者回答不同问题。</div></li>
+</ol>
+<p class="small">主要依据：<a href="0022-generative-ai-integrated-guide.html">综合讲解及各节原论文链接</a> · <a href="0021-latent-diffusion-complete.html">第 9 章课件</a> · <a href="../COURSE.md">课程路线</a></p>
+</main></body></html>

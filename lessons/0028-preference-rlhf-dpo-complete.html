@@ -1,0 +1,39 @@
+<!doctype html>
+<html lang="zh-CN"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>第十四章：偏好数据、RLHF 与 DPO</title><link rel="stylesheet" href="../assets/course.css"></head><body><main>
+<div class="eyebrow">生成式人工智能 · 第 14 章完整课件</div><h1>后训练：怎样利用“答案 A 比 B 好”？</h1>
+<p class="lead">SFT 用示范回答教模型“可以怎样答”。偏好数据提出另一种监督：同一个提示下，回答 A 比 B 更符合评审标准。第 14 章研究如何把这种相对判断变成训练目标，并区分奖励模型加强化学习的路线与直接偏好优化（DPO）。[<a href="https://arxiv.org/abs/2203.02155">InstructGPT 原论文</a>，<a href="https://arxiv.org/abs/2305.18290">DPO 原论文</a>]</p>
+
+<h2>1. 为什么不只继续做 SFT？</h2>
+<p>对于“解释贝叶斯公式”这样的提示，两个回答可能都正确，但一个更清楚，另一个省略了归一化。让评审给出“甲优于乙”，往往比写出唯一完美答案更直接。偏好数据通常记为 (x,y<sub>w</sub>,y<sub>l</sub>)：x 是同一提示，y<sub>w</sub> 是胜出回复，y<sub>l</sub> 是落选回复。这里的“胜出”取决于标注标准和标注者判断，不自动等于客观事实真伪。</p>
+
+<h2>2. 路线 A：先学奖励模型，再更新语言模型</h2>
+<p>奖励模型 rφ(x,y) 为提示 x 下的回复 y 给分。可用 Bradley–Terry 式的成对模型表示“胜出回复被偏好”的概率：</p>
+<div class="formula">Pφ(yw 优于 yl|x)=σ(rφ(x,yw)−rφ(x,yl))<br>L<sub>RM</sub>=−log σ(rφ(x,yw)−rφ(x,yl))</div>
+<p>若两个分数相同，模型给胜出概率 0.5，损失约 0.693；若胜出分数高 2，概率 σ(2)≈0.881，损失约 0.127。这个训练推动<strong>分数差</strong>符合人类比较；分数的绝对零点并无独立意义。</p>
+<p>然后让策略模型 πθ 生成回复，争取更高的奖励模型分数。但只追逐学得的分数，可能让策略钻奖励模型的空子或偏离原有语言能力，因此常加入相对参考策略 π<sub>ref</sub> 的 KL 约束。概念上可写为：</p>
+<div class="formula">最大化 E<sub>x,y∼πθ</sub>[rφ(x,y)] − β E<sub>x</sub>KL(πθ(·|x)‖πref(·|x))</div>
+<p>InstructGPT 的路线是 SFT → 用比较数据训练奖励模型 → 用 PPO 等强化学习方法更新策略，并加入偏离参考策略的惩罚。这里 PPO 是具体策略优化方法，不是“偏好数据”本身；奖励模型只是对偏好的近似，训练后仍需独立评估。[<a href="https://arxiv.org/abs/2203.02155">InstructGPT 原论文，第 3 节</a>]</p>
+
+<h2>3. 路线 B：DPO 为什么可以不显式训练奖励模型？</h2>
+<p>DPO 从上面的带 KL 约束目标出发。若奖励 r 已给定，其最优策略具有以下形式，其中 Z(x) 是保证概率和为 1 的归一化常数：</p>
+<div class="formula">π*(y|x)=πref(y|x) exp(r(x,y)/β)/Z(x)</div>
+<p>把式子取对数并移项：r(x,y)=β log[π*(y|x)/πref(y|x)]+β log Z(x)。比较同一提示下的 y<sub>w</sub> 与 y<sub>l</sub>，两边共同的 β log Z(x) 抵消。将奖励差代入上一节的成对偏好概率，就可<strong>直接用策略概率与参考概率的比值</strong>做分类训练，而不用先显式训练独立奖励模型：</p>
+<div class="formula">Δθ=log[πθ(yw|x)/πref(yw|x)]−log[πθ(yl|x)/πref(yl|x)]<br>L<sub>DPO</sub>=−log σ(βΔθ)</div>
+<p>这是 DPO 原论文设定下的推导，不意味着任意奖励优化问题都能如此化简。DPO 仍需要成对偏好数据、参考策略和超参数 β；它没有使标注质量或离线数据覆盖问题消失。[<a href="https://arxiv.org/abs/2305.18290">DPO 原论文，第 3 节</a>]</p>
+
+<h2>4. 用数字看 DPO 在推动什么</h2>
+<p>假设同一提示下，当前策略给胜出回复概率 0.6、落选回复 0.2；参考策略分别给 0.4、0.4。当前策略相对参考策略对两者的比值是 1.5 与 0.5，所以 Δθ=log(1.5/0.5)=log3。若 β=1，模型预测胜出概率 σ(log3)=0.75，损失 −log0.75≈0.288。训练会推动胜出回复的<strong>相对概率优势</strong>更大，而不只是看某个回复的原始概率。</p>
+<p>这也是参考策略的作用：比较的是“相对参考模型，当前模型更偏向谁”。如果把 π<sub>ref</sub> 漏掉，得到的就不是上述 DPO 公式。</p>
+
+<h2>5. 三个目标怎样排在同一学习链上？</h2>
+<div class="table-wrap"><table><thead><tr><th>阶段或方法</th><th>数据</th><th>直接优化</th><th>局限</th></tr></thead><tbody>
+<tr><td>SFT</td><td>提示 + 示范回复</td><td>示范 token 的条件负对数似然</td><td>单条示范不显式表达两回复排序</td></tr>
+<tr><td>奖励模型 + RLHF</td><td>偏好对 + 策略生成样本</td><td>先拟合偏好分数，再在约束下提高奖励</td><td>奖励代理可不完美；优化复杂</td></tr>
+<tr><td>DPO</td><td>偏好对 + 参考策略</td><td>偏好分类损失</td><td>依赖数据覆盖和推导设定</td></tr>
+</tbody></table></div>
+<p>这些方法描述训练目标或流程；第 12 章的全量微调、LoRA、QLoRA 描述参数怎样更新。你可以在合适条件下把它们组合。评估时还要区分“更受偏好”“更真实”“更安全”“更会完成任务”；一个训练损失无法自动证明全部目标都改善。</p>
+
+<h2>第 14 章理解检查</h2><ol><li>奖励模型的配对损失为什么只关心同一提示下两个分数的差？</li><li>RLHF 的策略目标为何通常约束与参考策略的差距？</li><li>DPO 推导中，同一提示下比较两回复时，哪个归一化项被抵消？参考策略还在公式中吗？</li><li>若只用一条“好回复”做 SFT，是否已得到“好回复优于另一回复”的偏好标签？</li></ol>
+<p>第 9–14 章课件已经一次性准备好；学习时仍逐章答题，错在何处就回到哪一步推导。</p>
+<p class="small"><a href="0027-sft-complete-chapter.html">第 13 章</a> · <a href="0022-generative-ai-integrated-guide.html">九个知识点综合讲解</a> · <a href="0023-generative-ai-concept-test.html">30 题概念测试</a> · <a href="../COURSE.md">课程路线</a></p>
+</main></body></html>

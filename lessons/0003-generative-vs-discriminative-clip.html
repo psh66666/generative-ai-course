@@ -1,0 +1,23 @@
+<!doctype html>
+<html lang="zh-CN"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>第二章 · 学边界、学分布，还是学配对？</title><link rel="stylesheet" href="../assets/course.css"></head><body><main>
+<div class="eyebrow">生成式人工智能 · 第 2 章 · 约 15 分钟</div>
+<h1>学边界、学分布，还是学配对？</h1>
+<p class="lead">本章目标：面对一个模型，先问它训练时要估计什么，再判断它是否能独立生成样本。CLIP 是检验这个判断的好例子。</p>
+
+<h2>1. 同一道题，两种学习方式</h2>
+<p>设 <em>x</em> 是一封邮件，<em>y</em> 是“垃圾邮件/正常邮件”。判别式方法直接学 <strong>p(y | x)</strong>：给定邮件，判断类别。它关心从输入到标签的规则。生成式分类方法可以学 <strong>p(x | y)p(y)</strong>：每类邮件通常长什么样、各类有多常见，再用贝叶斯公式分类。后者学习了数据如何按类别产生，因此可以尝试为指定类别生成样本。[<a href="https://cs229.stanford.edu/main_notes.pdf">Stanford CS229 讲义，第 4 章</a>]</p>
+<div class="card accent"><p><strong>判别式分类：</strong>“看到这封邮件，它属于哪类？”</p><p><strong>生成式分类：</strong>“垃圾邮件通常怎样形成？这封邮件更像哪类产生的？”</p></div>
+<p>更一般的生成模型也可以直接学 <strong>p(x)</strong>，或在条件 <em>c</em> 下学 <strong>p(x | c)</strong>，再从分布中采样。这是后续自回归、VAE、GAN、流模型和扩散模型的共同目标，但它们实现采样与训练的办法不同。研究时不要只凭“模型里有没有判别器”或“数据有没有标签”给整个系统贴标签；先看当前讨论的是哪个模块、哪个训练目标。</p>
+
+<h2>2. CLIP 究竟学了什么？</h2>
+<p>CLIP 读入一批真实的图文配对：图片经图像编码器得到向量，文字经文本编码器得到向量。它计算每张图与每段文字的相似度，让真正配对的相似度相对更高，其他组合相对更低。这叫<strong>对比学习</strong>。例如三张图与三段文字形成 3×3 的匹配表，正确配对位于对角线；训练目标推动对角线得分更高。[<a href="https://arxiv.org/abs/2103.00020">CLIP 原论文，图 1 与方法部分</a>]</p>
+<div class="card"><table style="width:100%;border-collapse:collapse;text-align:center"><caption class="small">一个小批次中的图文匹配</caption><thead><tr><th></th><th>“猫”</th><th>“船”</th><th>“树”</th></tr></thead><tbody><tr><th>猫图</th><td>✓</td><td>×</td><td>×</td></tr><tr><th>船图</th><td>×</td><td>✓</td><td>×</td></tr><tr><th>树图</th><td>×</td><td>×</td><td>✓</td></tr></tbody></table></div>
+<p><strong>关键边界：</strong>原版 CLIP 的编码器输出的是便于比较的表示，单独使用它不会从噪声画出一张新图。它能用文字描述来比较候选类别，也能为生成系统提供图文对齐信号；这并不使 CLIP 本身变成图像生成器。[<a href="https://arxiv.org/abs/2103.00020">CLIP 原论文</a>]</p>
+<p>纪要称 CLIP 为“自监督”。更准确地说，它使用已有图文配对作为监督信号，不依赖预先定义的人工类别标签；原论文称这种方式为<strong>自然语言监督</strong>。不同课程对“自监督”的边界可能不同，读论文时应把训练数据和目标写清楚，而不只记标签。[<a href="https://arxiv.org/abs/2103.00020">CLIP 原论文</a>]</p>
+
+<div class="card accent"><strong>本章带走的问题：</strong><p>模型学的是“给定输入判断标签”、 “样本如何产生”，还是“哪些图文彼此匹配”？训练目标比模型名称更能说明它的能力。</p></div>
+<h2>理解检查</h2><ol><li>邮件分类中，直接学 p(y|x) 与学 p(x|y)p(y) 各回答什么问题？</li><li>一批图文中有 3 对正确配对。CLIP 训练时希望 3×3 相似度表中的哪些格子相对更高？</li><li>有人说“CLIP 学过图片和文字，所以它能单独根据文字生成新图片”。你会怎样判断这句话？</li></ol>
+<p>请用自己的话回答；我会根据答案决定是否补讲，再进入第 3 章概率与散度。如有疑问，直接问我。</p>
+<p class="small"><a href="../reference/sequence-modeling.html">复习第 1 章</a> · <a href="../COURSE.md">课程路线</a> · 主要阅读：<a href="https://arxiv.org/abs/2103.00020">CLIP 原论文摘要与图 1</a></p>
+<p class="small">补充讲解：<a href="0004-conditional-probability-and-language-supervision.html">同一数据，两条学习路线；自然语言监督的含义</a></p>
+</main></body></html>

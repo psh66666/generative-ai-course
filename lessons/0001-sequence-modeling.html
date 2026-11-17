@@ -1,0 +1,29 @@
+<!doctype html>
+<html lang="zh-CN">
+<head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>第一章 · 序列为什么需要被建模？</title><link rel="stylesheet" href="../assets/course.css"></head>
+<body><main>
+<div class="eyebrow">生成式人工智能 · 第 1 章 / 第 1 节 · 约 12 分钟</div>
+<h1>序列为什么需要被建模？</h1>
+<p class="lead">本节目标：看到一句话中的某个词，能说明为什么预测它必须考虑前文，以及 RNN、LSTM、Attention 分别怎样传递前文信息。</p>
+
+<h2>1. 先看一个预测</h2>
+<div class="card accent"><p>“小明把钥匙放进抽屉。出门前，他打开抽屉取出了____。”</p><p>填“钥匙”时，模型既要知道当前位置前面有哪些词，也要把“钥匙”和“抽屉”的关系从较早的位置带过来。若把词序打乱，预测会变难。这就是<strong>序列建模</strong>：处理一串有顺序的元素，并利用元素间的依赖关系。</p></div>
+<p>序列元素可以是词、token、声音帧、视频帧或图像像素。研究生成模型时，先把“根据上下文给下一个元素分配概率”想清楚，后面的自回归模型就容易理解。</p>
+<div class="formula">P(xₜ | x₁, x₂, …, xₜ₋₁)</div>
+<p>这里的 <em>xₜ</em> 是当前位置的元素。公式只是说：<strong>已知前面的内容，估计当前位置各种可能值的概率</strong>。它还没有指定用什么网络来计算。</p>
+
+<h2>2. 三种传递上下文的思路</h2>
+<div class="card"><p><strong>CNN：</strong>先看一个局部窗口；叠多层后，信息能覆盖更远位置。它适合提取局部模式，但跨度大小受网络结构影响。</p><p><strong>RNN：</strong>按顺序更新“到目前为止的摘要”，即隐藏状态 <em>hₜ</em>。新状态由当前输入和前一状态计算：</p><div class="formula">hₜ = f(hₜ₋₁, xₜ)</div><p><strong>Attention：</strong>当前位置可按相关性读取其他位置的信息。预测“取出了什么”时，可以重点读取前面“钥匙”所在的位置。具体能读哪些位置由任务和注意力掩码决定。</p></div>
+<div class="flow" aria-label="RNN 信息传播路径"><span>钥匙 x₁</span><b>→</b><span>h₁</span><b>→</b><span>h₂</span><b>→</b><span>…</span><b>→</b><span>hₜ</span></div>
+<p class="small">这张路径图强调普通 RNN 需要逐步传递早期信息。Attention 允许更直接地建立位置间联系，但也不表示训练或计算没有代价。</p>
+
+<h2>3. 为什么普通 RNN 容易忘记很远的事？</h2>
+<p>训练时，后面位置的误差信号要沿着这些时间步倒传。每经过一步，都要乘上一个局部导数。若只为直观理解而假设每一步都乘 <em>0.5</em>，经过 10 步就只剩 <em>0.5¹⁰ ≈ 0.001</em>；若持续乘大于 1 的数，又可能放大。真实网络是矩阵运算，不能简单归结为一个 0.5，但<strong>反复相乘</strong>是梯度消失或爆炸的核心直觉。[<a href="https://pubmed.ncbi.nlm.nih.gov/18267787/">Bengio 等，1994</a>]</p>
+<p><strong>LSTM</strong>仍属于循环网络，但增加了更容易保留信息的 cell state，并用门控制写入、保留和读出。它缓解了长距离依赖的训练困难，不保证任何距离都能完美记住。[<a href="https://people.idsia.ch/~juergen/lstm1997-2024head.pdf">Hochreiter 与 Schmidhuber，1997</a>]</p>
+<p><strong>Transformer 的自注意力</strong>让一个位置在单层中结合其他位置的信息；训练时也更易并行处理序列。它仍需要位置编码或其他位置表示来体现顺序。[<a href="https://arxiv.org/abs/1706.03762">Vaswani 等，2017</a>]</p>
+
+<div class="card accent"><strong>这一节带走一句话：</strong><p>序列模型的共同任务是利用顺序和上下文；CNN、RNN、Attention 的主要差别，是信息如何跨位置传播。</p></div>
+<h2>理解检查</h2><p>先不看资料，用自己的话回答：</p><ol><li>在“把钥匙放进抽屉……取出了____”中，为什么只看空格前一两个词可能不够？</li><li>若一个普通 RNN 每步的梯度缩小到上一轮的一半，跨 10 步后大约还剩多少？这能说明什么，又不能说明什么？</li><li>LSTM 与 Attention 分别怎样改善远处信息的利用？</li></ol>
+<p>把答案发给我。我会逐题反馈，再决定是补一节例子，还是进入第 1 章下一节。任何不清楚的地方，也可以直接追问。</p>
+<p class="small">课程路线：<a href="../COURSE.md">COURSE.md</a> · 本节主要阅读：<a href="https://arxiv.org/abs/1706.03762">Attention Is All You Need（原论文）</a>。第一次阅读只看摘要和引言即可。</p>
+</main></body></html>

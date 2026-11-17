@@ -1,0 +1,30 @@
+<!doctype html>
+<html lang="zh-CN"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>第三章补充 · 散度怎样参与生成模型训练？</title><link rel="stylesheet" href="../assets/course.css"></head><body><main>
+<div class="eyebrow">生成式人工智能 · 第 3 章补充 · 约 15 分钟</div><h1>散度怎样参与生成模型训练？</h1>
+<p class="lead">先把三件事分开：真实数据有分布 P；模型产生样本所遵循的分布是 Qθ；KL 或 JS 是比较 P 与 Qθ 的尺子。尺子指导训练，但尺子本身不生成样本。</p>
+
+<h2>1. KL 比的是“真实常见的，模型给了多少概率”</h2>
+<div class="formula">KL(P‖Qθ) = Σₓ P(x) log[P(x)/Qθ(x)]</div>
+<p>式子先按 P 的出现频率抽取结果，再看模型 Qθ 给这些结果多少概率。因此 P 常见、Qθ 却认为几乎不可能的结果会受到强惩罚。你已答对极端情形：P(x)&gt;0、Qθ(x)=0 时，KL(P‖Qθ) 无穷大。</p>
+<p>训练一个可以计算数据概率的生成模型时，常最大化训练样本的平均 log Qθ(x)，即极大似然。把上式拆开：</p>
+<div class="formula">KL(P‖Qθ) = Σₓ P(x)log P(x) − Σₓ P(x)log Qθ(x)</div>
+<p>第一项只由数据分布 P 决定，与模型参数 θ 无关。因此在理论上的 P 固定时，<strong>最大化数据在模型下的平均对数概率，等价于最小化 KL(P‖Qθ)</strong>。实际训练只有有限数据，用经验分布来近似 P。[<a href="https://www.deeplearningbook.org/contents/ml.html">Goodfellow 等，《Deep Learning》第 5 章</a>]</p>
+<div class="card"><p><strong>一轮训练的具体样子：</strong>100 个样本里有 80 只猫、20 只狗。模型参数 q 表示“生成猫”的概率。起初 q=0.5，平均负对数似然为 −0.8ln0.5−0.2ln0.5≈0.693；调整参数后 q=0.7，损失变成 −0.8ln0.7−0.2ln0.3≈0.526。损失下降，模型更接近数据的 0.8/0.2。整个过程中无需先算出 KL 的精确数值；KL 提供的是解释这个优化方向的分布视角。</p></div>
+<p><strong>等价关系在每一步成立，</strong>因为 KL 与负对数似然只差一个不随 q 改变的数据常数；KL=0 是模型恰好学到 P 时的终点，不是等价关系开始成立的条件。</p>
+
+<h2>2. JS 为什么非要引入 M？</h2>
+<p>令 P=(1,0)、Q=(0,1)：真实数据只有猫，模型只生成狗。直接比较时，KL(P‖Q) 无穷大，KL(Q‖P) 也无穷大。若只是把这两个 KL 平均，仍然是无穷大。</p>
+<p>取中间分布 M=(P+Q)/2=(0.5,0.5)。M 对猫和狗都留有概率，所以现在可以让 P 和 Q 分别与<strong>同一个有限的参照</strong>比较：</p>
+<div class="formula">KL(P‖M)=ln2<br>KL(Q‖M)=ln2<br>JS(P,Q)=½ln2+½ln2=ln2</div>
+<p>换 P、Q 的位置，只会交换两项，所以 JS 对称。M 不是“补上互补部分”，而是<strong>共同参照</strong>；它也让这个完全不重叠的例子得到有限值。[<a href="https://www.cise.ufl.edu/~anand/sp06/jensen-shannon.pdf">Lin，1991</a>]</p>
+<p>别用“两个方向都无穷大”来判断 KL 是否对称：这个例子太特殊。若 P=(0.9,0.1)、Q=(0.5,0.5)，则 KL(P‖Q)≈0.368，而 KL(Q‖P)≈0.511；顺序改变，数值就变了。</p>
+
+<h2>3. 生成模型到底在哪里“生成”？</h2>
+<div class="card accent"><p><strong>训练阶段：</strong>调整 θ，让 Qθ 更像 P。KL/JS 表达不同的比较方式，或出现在训练目标的理论分析中。</p><p><strong>采样阶段：</strong>按已经学到的 Qθ 产生新样本。例如自回归模型逐 token 采样，GAN 把噪声 z 输入生成器。KL 和 JS 都不会替模型执行采样。</p></div>
+<p>原始 GAN 的理论分析表明：若判别器对当前生成器达到最优，原始极小极大目标可写成常数加上 2×JS(P,Qθ)。这说明其理想目标与分布接近有关，<strong>不表示实际每一步都直接算出真实 JS</strong>，也不表示所有 GAN 训练变体都严格优化同一个式子。[<a href="https://arxiv.org/abs/1406.2661">Goodfellow 等，2014，第 4.1 节</a>]</p>
+<p>实践中，GAN 的生成器先把噪声变成假样本，判别器学习分辨真实样本与假样本；生成器根据判别器给出的信号调整参数。JS 是原始理想化目标的<strong>理论解释</strong>。若判别器不能达到最优，或改用了其他生成器损失，就不能说每次更新都精确地在下降真实 JS。</p>
+
+<h2>检验理解</h2><ol><li>极大似然最大化的是数据样本的 log Qθ(x)。为什么这与最小化 KL(P‖Qθ) 的模型最优解相同？</li><li>P=(1,0)、Q=(0,1) 时，为什么两个 KL 无穷大，而 JS 有限？</li><li>“训练损失下降”和“产生一张新图片”分别发生在训练与采样的哪一阶段？KL/JS 扮演什么角色？</li></ol>
+<p>请先用自己的话回答；有疑问可随时追问。理解后我们再继续贝叶斯网络。</p>
+<p class="small"><a href="0005-distributions-kl-js.html">上一节</a> · <a href="../COURSE.md">课程路线</a> · 主要阅读：<a href="https://www.deeplearningbook.org/contents/ml.html">《Deep Learning》第 5.5 节</a></p>
+</main></body></html>

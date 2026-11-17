@@ -1,0 +1,37 @@
+<!doctype html>
+<html lang="zh-CN"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>第八章 · 扩散模型为什么要先加噪？</title><link rel="stylesheet" href="../assets/course.css"><script src="../assets/diffusion-noise-demo.js" defer></script></head><body><main>
+<div class="eyebrow">生成式人工智能 · 第 8 章 / 第 1 节 · 约 20 分钟</div>
+<h1>扩散模型为什么要先加噪？</h1>
+<p class="lead">本节要解决一个看似矛盾的问题：我们想生成清晰图片，为什么训练时却故意把图片弄脏？答案是：加噪规则由我们自己设定，所以每次“弄脏”时都知道加了什么；模型便有明确的去噪练习题。</p>
+
+<h2>1. 先看完整任务</h2>
+<div class="flow"><span>真实图片 x₀</span><b>→</b><span>逐步加噪 x₁…xₜ</span><b>→</b><span>近似纯噪声 x<sub>T</sub></span></div>
+<div class="flow"><span>随机噪声 x<sub>T</sub></span><b>→</b><span>逐步预测并去掉噪声</span><b>→</b><span>生成图片 x₀</span></div>
+<p>上面第一条是<strong>固定的正向过程</strong>：它负责制造训练题目，不用学习。第二条是<strong>学习得到的反向过程</strong>：它负责生成。两条路的方向相反，但反向过程并非把一次随机加噪精确求逆；噪声会破坏信息，模型学的是“当前噪声图像下，较清晰图像可能是什么”。[<a href="https://arxiv.org/pdf/2006.11239">DDPM 原论文，图 2 与第 2 节</a>]</p>
+
+<h2>2. 一步怎样加噪？</h2>
+<p>把真实图片记为 x₀，第 t 步的图像记为 xₜ。每一步混入一点独立的标准高斯噪声 εₜ：</p>
+<div class="formula">xₜ = √αₜ · xₜ₋₁ + √βₜ · εₜ<br>αₜ = 1 − βₜ，　εₜ ∼ N(0,I)</div>
+<p>βₜ 控制这一步加多少噪声；√αₜ 让原有信号随之缩小。经过足够多步后，原图的可见信息越来越少，终点被设计成接近标准高斯噪声。这个终点分布容易抽样，所以生成时有了明确的起点。[<a href="https://arxiv.org/pdf/2006.11239">DDPM 原论文，式 (1)–(4)</a>]</p>
+
+<h2>3. 为什么训练不必真的一步步加到 t？</h2>
+<p>把前两步展开：x₁=√α₁x₀+√β₁ε₁；再代入第二步，得到</p>
+<div class="formula">x₂ = √(α₁α₂) · x₀ + √(α₂β₁) · ε₁ + √β₂ · ε₂</div>
+<p>后两项是独立高斯噪声之和，方差为 α₂β₁+β₂ = α₂(1−α₁)+(1−α₂)=1−α₁α₂。因此可以<strong>在分布上</strong>把它们合成一次标准高斯噪声 ε。推广到任意 t，令 ᾱₜ=α₁α₂…αₜ：</p>
+<div class="formula">xₜ = √ᾱₜ · x₀ + √(1−ᾱₜ) · ε，　ε ∼ N(0,I)</div>
+<p>这意味着训练时随机挑一个 t，就能直接造出该时刻的 xₜ。这里说的是<strong>分布相同</strong>；它不是声称新抽出的 ε 与之前每一步抽出的噪声数值相同。[<a href="https://arxiv.org/pdf/2006.11239">DDPM 原论文，式 (4)</a>]</p>
+
+<h2>4. 一道只有一个数的去噪练习</h2>
+<p>为了看清模型学什么，暂把“图片”压缩成一个数。设 x₀=2，选定某时刻使 ᾱₜ=0.64，于是 √ᾱₜ=0.8、√(1−ᾱₜ)=0.6。这一次我们抽到 ε=−1，造出的训练输入是 xₜ=0.8×2+0.6×(−1)=1。</p>
+<p>模型只收到 <strong>xₜ=1 和时间 t</strong>，要预测当时混入的 ε。训练者知道这次抽到了 −1，所以能计算预测误差。若模型预测 −0.8，这道题的平方误差是 (−1−(−0.8))²=0.04。模型要从许多图片、许多时间点的练习中学规律，而不是记住这一个数。[<a href="https://arxiv.org/pdf/2006.11239">DDPM 原论文，算法 1 与式 (14)</a>]</p>
+<div class="card demo accent" data-diffusion-demo><strong>动手试：调整模型预测的噪声</strong><label for="diffusion-prediction">模型预测 ε̂：<output data-predicted>−0.8</output></label><input id="diffusion-prediction" type="range" min="-2" max="2" step="0.1" value="-0.8"><p>用预测值反推“干净数值”：(1−0.6×ε̂)/0.8 = <output data-clean></output><br>本次训练误差：(−1−ε̂)² = <output data-loss></output></p><p class="small">试着把误差调到 0：预测应是多少？反推的干净数值应回到多少？</p></div>
+
+<h2>5. 训练损失与生成路径</h2>
+<p>DDPM 的常见简化训练目标是：随机抽真实 x₀、时间 t 和噪声 ε，按上式造 xₜ，再让网络 εθ(xₜ,t) 预测 ε，降低二者的平方误差：</p>
+<div class="formula">Lₛᵢₘₚₗₑ = Eₓ₀,ₜ,ε [ ‖ε − εθ(xₜ,t)‖² ]</div>
+<p>它来自对变分目标的重新参数化和权重调整；<strong>不能简单说它就是精确负对数似然</strong>。生成时没有真实 x₀，也不知道真实 ε：从 x<sub>T</sub>∼N(0,I) 起步，网络在每个时间点预测当前图像中的噪声，据此构造较少噪声的一步 xₜ₋₁，直到 x₀。具体反向一步公式和“为何还会再加入随机噪声”留到下一节推导。[<a href="https://arxiv.org/pdf/2006.11239">DDPM 原论文，算法 1、2 与第 3.4 节</a>]</p>
+
+<h2>本节理解检查</h2><ol><li>在数值例子中，若模型预测 ε̂=−1，训练误差是多少？按公式反推的干净数值是多少？</li><li>训练时为什么能知道正确的噪声 ε，而生成时不能依赖这个“正确答案”？</li><li>为什么训练可以直接生成任意时间点的 xₜ，而基础 DDPM 生成时仍要从 T 逐步走回 0？请先说出你的理解，下一节再推导反向一步。</li></ol>
+<p>请把不清楚的地方直接告诉我；我们会停在这一节直到你能解释正向造题、反向生成的区别。</p>
+<p class="small"><a href="0016-flow-affine-coupling.html">上一节：耦合层</a> · <a href="0018-diffusion-reverse-step.html">下一节：反向去噪一步</a> · <a href="../reference/diffusion-notation.html">扩散符号速查</a> · <a href="../COURSE.md">课程路线</a> · 主要阅读：<a href="https://arxiv.org/abs/2006.11239">Ho、Jain 与 Abbeel：DDPM</a></p>
+</main></body></html>

@@ -1,0 +1,22 @@
+<!doctype html>
+<html lang="zh-CN"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>第四章 · 生成顺序与错误累积</title><link rel="stylesheet" href="../assets/course.css"></head><body><main>
+<div class="eyebrow">生成式人工智能 · 第 4 章 / 第 2 节 · 约 12 分钟</div><h1>换个顺序，为什么结果可能变？</h1>
+<p class="lead">本节目标：分清一个数学事实与一个工程事实。链式法则允许任意顺序分解同一个真实联合分布；有限的模型在不同顺序下，学习任务与生成行为可能不同。</p>
+
+<h2>1. 先补完上一题</h2>
+<p>你已经写对“<strong>小明 买 书</strong>”的分解。把三个概率 0.2、0.5、0.4 相乘，整句概率是 <strong>0.04</strong>。自回归模型学习每一步的条件概率，乘起来得到整句概率；训练通常求和对数概率，避免把许多小数直接连乘。</p>
+
+<h2>2. 链式法则不规定唯一顺序</h2>
+<p>把图像简化成两个位置 A、B。两种写法都严格正确：</p>
+<div class="formula">p(A,B)=p(A)·p(B|A)<br>p(A,B)=p(B)·p(A|B)</div>
+<p>如果模型拥有完整正确的条件概率，两种顺序描述的是<strong>同一个</strong>联合分布。但实际网络只有有限参数、固定结构与有限训练数据。先生成 A 时，模型学“看 A 猜 B”；先生成 B 时学“看 B 猜 A”，难度和可用上下文可能不同。因此顺序成为模型的<strong>归纳偏置</strong>，而不是链式法则本身的错误。图像可以采用从左到右、从上到下的顺序，也可以研究其他顺序。[<a href="https://arxiv.org/abs/1601.06759">PixelRNN</a>；<a href="https://arxiv.org/abs/2412.01827">RandAR</a>]</p>
+
+<h2>3. 训练与推理的前缀分岔</h2>
+<div class="card"><p><strong>训练样本：</strong>“小明 买 书”。预测第三个位置时，输入真实前缀“小明 买”，目标是“书”。</p><p><strong>推理生成：</strong>模型第二步若输出“卖”，第三步只能看“小明 卖”。它可能继续生成一个合适的词，也可能因为前缀偏离训练中常见的上下文而犯更多错。</p></div>
+<p>这叫训练与生成阶段的前缀分布差异，常讨论为<strong>暴露偏差</strong>。教师强制让训练阶段不会把自己刚犯的错误作为下一步输入，却不能消除生成阶段可能出现的错误累积。[<a href="https://arxiv.org/abs/1506.03099">Scheduled Sampling 原论文</a>]</p>
+<div class="card accent"><strong>本章的三条主线：</strong><p>链式法则给出逐位置生成的合法分解；极大似然训练提高真实序列每一步的条件概率；推理时模型必须沿着自己生成的前缀继续。</p></div>
+
+<h2>第 4 章理解检查</h2><ol><li>p(A,B)=p(A)p(B|A) 与 p(B)p(A|B) 在数学上是否可能同时正确？为什么实际模型换顺序后效果仍可能不同？</li><li>训练时第二个 token 预测错了，第三步的输入会使用错误 token 吗？推理时呢？</li><li>若三个条件概率为 0.2、0.5、0.4，整句概率与负对数似然分别是多少？可以写成 −log(0.04)，不必计算小数。</li></ol>
+<p>请回答后再进入下一章 VAE；任何概念仍不清楚可以继续追问。</p>
+<p class="small"><a href="0009-autoregressive-factorization.html">上一节</a> · <a href="../COURSE.md">课程路线</a> · 主要阅读：<a href="https://arxiv.org/abs/1506.03099">Scheduled Sampling 论文摘要</a></p>
+</main></body></html>

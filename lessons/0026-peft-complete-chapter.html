@@ -1,0 +1,36 @@
+<!doctype html>
+<html lang="zh-CN"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>第十二章：PEFT、LoRA 与 QLoRA</title><link rel="stylesheet" href="../assets/course.css"></head><body><main>
+<div class="eyebrow">生成式人工智能 · 第 12 章完整课件</div><h1>PEFT：为什么只训练少量参数仍能适配大模型？</h1>
+<p class="lead">预训练后，通常要把同一模型适配到不同任务。若每个任务都复制并全量微调整个大模型，存储和优化器成本很高。参数高效微调（PEFT）研究的是“哪些参数需要改变、怎样表达这些改变”。它不规定模型必须做 SFT 或偏好训练；那是后两章的目标问题。[<a href="https://arxiv.org/abs/2106.09685">LoRA 原论文</a>]</p>
+
+<h2>1. 全量微调到底在改什么？</h2>
+<p>对一个线性层，预训练权重 W 给出 h=Wx。全量微调会把 W 的每个元素都设为可训练参数；若 W 有 d<sub>out</sub>×d<sub>in</sub> 个元素，仅这一层就要为每个元素保存梯度与可能的优化器状态。多个任务若各有一份完整更新，还要分别保存完整权重。</p>
+<p>PEFT 的想法是保留共同的预训练基座，只为每个任务保存小量变化。方法有不同种：适配器在网络中插入小模块；软提示或前缀方法训练额外的输入表示；LoRA 则直接把现有线性层的<strong>权重变化</strong>限制为低秩。不同方法对推理延迟、可表达能力和适配位置的影响不同，不能只按可训练参数数量判断优劣。</p>
+
+<h2>2. LoRA 的低秩公式从哪里来？</h2>
+<p>我们希望该层变成 h=(W+ΔW)x。若直接训练完整 ΔW，参数还是 d<sub>out</sub>d<sub>in</sub> 个。LoRA 假设任务所需的变化可由两个更窄的矩阵相乘近似：</p>
+<div class="formula">ΔW=BA，A∈ℝ<sup>r×din</sup>，B∈ℝ<sup>dout×r</sup><br>h=Wx+(α/r)BAx</div>
+<p>r 是秩，通常取远小于输入和输出维度；α/r 是常见的缩放约定，控制新增路径的影响。只更新 A、B，而 W 冻结。原层需要 d<sub>out</sub>d<sub>in</sub> 个可训练数；LoRA 只需 r(d<sub>in</sub>+d<sub>out</sub>) 个。注意这是<strong>单个矩阵</strong>的比较，不等于整个训练作业节省同样比例的显存或时间。[<a href="https://arxiv.org/abs/2106.09685">LoRA 原论文，第 4 节</a>]</p>
+
+<h2>3. 用数字算一次参数节省</h2>
+<p>假设一个线性层 W 为 1024×1024，全量更新需要 1,048,576 个参数。LoRA 取 r=8，则 A 为 8×1024，B 为 1024×8，合计 16,384 个可训练参数，为该矩阵全量更新的 1/64。模型输出仍会变，因为虽然 W 固定，BAx 会随训练改变。</p>
+<p>常见初始化令 B=0、A 有小随机值，于是训练开始时 ΔW=0，模型最初行为与基座一致。学习会先让 B 获得更新，再逐步让低秩路径表达任务变化。秩太小可能不足以表达任务所需更新；秩增大则更灵活，也增加参数和资源成本。</p>
+
+<h2>4. 梯度为何能更新 A、B，却不更新 W？</h2>
+<p>假设上游损失为 L。反向传播仍经过整个计算图，知道改变 BAx 会如何改变 L，因此能求出 ∂L/∂A、∂L/∂B。冻结 W 的意思是优化器不对 W 执行更新，不是把模型的前向路径 W 完全删除。训练完毕，推理时可保留分支计算，也可在适用设置下把 BA 合并进 W；不同任务则可加载不同低秩增量。</p>
+<div class="flow"><span>共同基座 W：冻结</span><b>+</b><span>任务增量 A、B：训练</span><b>→</b><span>适配后的输出</span></div>
+
+<h2>5. QLoRA 又解决什么问题？</h2>
+<p>LoRA 减少可训练参数，但大基座 W 仍要装入内存。QLoRA 把<strong>冻结的基座</strong>以较低精度量化存储，并让梯度经过量化基座的计算路径，更新 LoRA 增量。它还引入针对权重分布的 4 位表示、双重量化等内存设计。[<a href="https://arxiv.org/abs/2305.14314">QLoRA 原论文</a>]</p>
+<p>因此“QLoRA 是把全部 4 位权重继续训练”是错误的。量化能降低权重存储成本，却不消除激活、输入长度、计算或量化误差。是否足够好仍需在目标任务上评估；PEFT 不是“少量参数必然等于全量微调”的定理。</p>
+
+<h2>6. 训练阶段与参数方法是两条轴</h2>
+<div class="table-wrap"><table><thead><tr><th>问题</th><th>例子</th><th>回答什么</th></tr></thead><tbody>
+<tr><td>训练目标</td><td>SFT、DPO、奖励优化</td><td>什么样的输出被奖励或惩罚</td></tr>
+<tr><td>参数更新方式</td><td>全量微调、LoRA、QLoRA</td><td>哪些权重实际被更新，怎样存储</td></tr>
+</tbody></table></div>
+<p>你可以用 LoRA 做指令 SFT，也可以在合适设置下做偏好优化。把“用了 LoRA”当成“模型已经完成对齐”会混淆方法和目标。</p>
+
+<h2>第 12 章理解检查</h2><ol><li>1024×1024 层用 r=8 的 LoRA 时，单层可训练参数是多少？为什么不能据此宣称训练总内存降为 1/64？</li><li>W 冻结后，模型输出为什么还能改变？梯度会更新哪两个矩阵？</li><li>QLoRA 的量化主要作用于基座还是低秩增量？基座是否被全量训练？</li><li>“用 LoRA 做 SFT”中，哪个词描述目标，哪个词描述参数更新方式？</li></ol>
+<p class="small"><a href="0025-llm-pretraining-complete.html">第 11 章</a> · <a href="0027-sft-complete-chapter.html">第 13 章：SFT</a> · <a href="../COURSE.md">课程路线</a></p>
+</main></body></html>

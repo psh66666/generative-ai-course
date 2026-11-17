@@ -1,0 +1,33 @@
+<!doctype html>
+<html lang="zh-CN"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>第三章 · 从贝叶斯公式推到邮件分类</title><link rel="stylesheet" href="../assets/course.css"></head><body><main>
+<div class="eyebrow">生成式人工智能 · 第 3 章 / 第 3 节 · 约 18 分钟</div><h1>从贝叶斯公式推到邮件分类</h1>
+<p class="lead">本节把公式完整走一遍：已知一封邮件里的若干特征，怎样算它是垃圾邮件的后验概率？每一步都注明用了什么规则。</p>
+
+<h2>1. 三种概率分别是什么？</h2>
+<p>令 Y∈{S,N}，S 表示垃圾邮件，N 表示正常邮件；X=(X₁,…,Xₙ) 是整封邮件的特征向量。例如 X₁=1 表示出现“优惠”，X₂=1 表示出现“折扣”。我们想求 p(Y=S|X=x)：<strong>已经看到特征 x，属于垃圾邮件的概率是多少？</strong></p>
+<div class="formula">p(Y=y | X=x) = p(X=x | Y=y)·p(Y=y) / p(X=x)</div>
+<p>这是贝叶斯公式。分子有两个量：类别先验 p(Y=y)，以及该类邮件产生当前特征组合的似然 p(X=x|Y=y)。分母 p(X=x) 是让所有类别的后验概率加起来等于 1 的归一化常数。</p>
+
+<h2>2. 真正困难的是联合似然</h2>
+<p>不加任何假设时，链式法则给出：</p><div class="formula">p(X₁=x₁,…,Xₙ=xₙ | Y=y)<br>= p(X₁=x₁|y) · p(X₂=x₂|X₁=x₁,y) · …</div>
+<p>后面的项要考虑越来越多的前序特征；词汇多时，几乎无法为所有组合估计概率。<strong>朴素贝叶斯此时加入额外假设：</strong>固定类别 Y 后，各特征条件独立，于是联合似然简化为乘积：</p>
+<div class="formula">p(X=x|Y=y) = ∏ⱼ₌₁ⁿ p(Xⱼ=xⱼ|Y=y)</div>
+<p>把它代回贝叶斯公式，得到：</p>
+<div class="formula">p(Y=y|X=x) = [p(Y=y)∏ⱼ p(Xⱼ=xⱼ|Y=y)] / [Σᵧ′ p(Y=y′)∏ⱼ p(Xⱼ=xⱼ|Y=y′)]</div>
+<p>分母就是对所有可能类别的分子相加。若只需选概率最大的类别，分母对所有 y 一样，可先比较各类未归一化分数；若需要真正的后验概率，就必须除以分母。[<a href="https://cs229.stanford.edu/notes_archive/cs229-notes2.pdf">Stanford CS229 讲义</a>]</p>
+
+<h2>3. 带数字算一次</h2>
+<p>设 p(S)=0.2、p(N)=0.8。词“优惠”在垃圾/正常邮件中的出现概率分别是 0.8/0.1；“折扣”分别是 0.6/0.05。现在看到一封<strong>两个词都出现</strong>的邮件，按朴素贝叶斯计算：</p>
+<div class="card"><p>垃圾邮件分数：p(S)·p(X₁=1|S)·p(X₂=1|S)<br>= 0.2×0.8×0.6 = <strong>0.096</strong></p><p>正常邮件分数：p(N)·p(X₁=1|N)·p(X₂=1|N)<br>= 0.8×0.1×0.05 = <strong>0.004</strong></p><p>归一化：p(S|X₁=1,X₂=1)=0.096/(0.096+0.004)=<strong>0.96</strong>。</p></div>
+<p>所以该模型会判它为垃圾邮件，后验概率为 96%。这不是说“两个词在真实世界一定独立”，而是说<strong>模型依靠这个假设完成了计算</strong>。</p>
+
+<h2>4. 条件独立不等于总体独立</h2>
+<p>在这个数字例子里，即使按模型假设两词在固定类别后独立，它们在所有邮件里仍可能相关，因为类别 Y 同时影响两个词：</p>
+<div class="formula">p(X₁=1)=0.2×0.8+0.8×0.1=0.24<br>p(X₂=1)=0.2×0.6+0.8×0.05=0.16<br>p(X₁=1,X₂=1)=0.096+0.004=0.10</div>
+<p>若总体独立，联合概率应为 0.24×0.16=0.0384；实际模型给出 0.10，明显不同。<strong>共同的类别 Y 可以让两个条件独立的特征在总体上相关。</strong></p>
+
+<div class="card accent"><p><strong>再把训练目标放回正确位置：</strong>上面的后验公式用于分类。训练概率参数时，极大似然通常计算并最小化样本的<strong>负对数似然</strong>；最小化数据到模型的某个 KL 是对这一目标的分布解释，不等于每次都直接计算真实 KL。[<a href="https://www.deeplearningbook.org/contents/ml.html">《Deep Learning》第 5 章</a>]</p></div>
+<h2>理解检查</h2><ol><li>若只比较 S 和 N 谁更可能，为什么可以暂时不算分母？若要报告“96%”，为什么必须算分母？</li><li>本例中 p(X₁=1,X₂=1)=0.10，却有 p(X₁=1)p(X₂=1)=0.0384。这与“给定 Y 后独立”矛盾吗？</li><li>模型训练时降低的是负对数似然还是 KL？两者为什么有相同的参数最优方向？</li></ol>
+<p>请按自己的理解回答，疑问可以直接指出在哪一步。</p>
+<p class="small"><a href="0007-bayesian-networks-naive-bayes.html">上一节</a> · <a href="../COURSE.md">课程路线</a> · 主要阅读：<a href="https://cs229.stanford.edu/notes_archive/cs229-notes2.pdf">CS229 朴素贝叶斯讲义</a></p>
+</main></body></html>

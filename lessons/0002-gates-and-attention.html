@@ -1,0 +1,28 @@
+<!doctype html>
+<html lang="zh-CN">
+<head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>第一章 · 门控与注意力怎样利用远处信息</title><link rel="stylesheet" href="../assets/course.css"></head>
+<body><main>
+<div class="eyebrow">生成式人工智能 · 第 1 章 / 第 2 节 · 约 10 分钟</div>
+<h1>门控与注意力怎样利用远处信息</h1>
+<p class="lead">上一节你正确算出 2<sup>−10</sup> ≈ 0.00098。这节把“难以学到远处依赖”与“运行时完全没有远处信息”分开，再看 LSTM 和 Attention 的信息流。</p>
+
+<h2>1. 梯度小，究竟意味着什么？</h2>
+<p>假设我们已经训练了一个普通 RNN。前面的“钥匙”经过一串隐藏状态，理论上仍可能影响末尾预测。<strong>梯度消失说的是训练困难：</strong>当末尾预测错了，误差信号传回早期位置和参数时可能越来越小，模型很难据此学会保留“钥匙”。所以“早期词一定影响更小”不是普遍定律；这是普通 RNN 在某些参数和任务下常见的训练风险。[<a href="https://pubmed.ncbi.nlm.nih.gov/18267787/">Bengio 等，1994</a>]</p>
+<div class="card accent"><p><strong>两个不同的问题</strong></p><p>前向：模型此刻是否带着早期信息？<br>反向：训练误差能否有效传回早期位置，让模型学会带着它？</p></div>
+
+<h2>2. LSTM：给记忆一条受控的通道</h2>
+<p>LSTM 的每个时间步有一个 cell state <em>cₜ</em>，可把它想成可更新的记事本。门是由当前输入 <em>xₜ</em> 和上一隐藏状态 <em>hₜ₋₁</em> 经过<strong>可学习的线性变换与 sigmoid</strong>得到的 0 到 1 的数，随后逐元素控制信息流；它们不是“几个 RNN”。</p>
+<div class="formula">cₜ = fₜ ⊙ cₜ₋₁ + iₜ ⊙ gₜ</div>
+<p><em>fₜ</em> 是遗忘门，控制旧记忆留下多少；<em>iₜ</em> 是输入门，控制新候选内容 <em>gₜ</em> 写入多少；输出门再控制哪些记忆进入隐藏状态。符号 ⊙ 表示逐元素相乘。若一部分记忆需要长时间保留，模型可以学到相应的 <em>fₜ</em> 接近 1、<em>iₜ</em> 接近 0，减少它被反复改写。这里展示的是带遗忘门的 LSTM；遗忘门由后续研究加入。[<a href="https://sferics.idsia.ch/pub/juergen/FgGates-NC.pdf">Gers 等，2000</a>]</p>
+
+<h2>3. Attention：按相关性读取其他位置</h2>
+<p>把当前位置的 <strong>Q（Query）</strong>想成“我在找什么”，各位置的 <strong>K（Key）</strong>是“我能用什么线索被找到”，<strong>V（Value）</strong>是“我提供什么内容”。Q 与 K 算相似度，经 softmax 得到权重；然后用这些权重对 V 做加权求和。</p>
+<div class="formula">权重 = softmax(QKᵀ / √dₖ + mask)<br>输出 = 权重 × V</div>
+<p>在“取出了____”的位置，若模型认为“钥匙”相关，就可以给对应位置的 V 较大权重。这表示<strong>直接汇集相关位置的信息</strong>，并不等于单靠这一层就算出了下一个词。用于逐词生成时，因果 mask 会阻止读取未来位置；随后还有其他层和输出头，把表示转成词表上的概率。[<a href="https://arxiv.org/abs/1706.03762">Attention Is All You Need</a>]</p>
+
+<div class="card accent"><strong>对比记忆：</strong><p>RNN 让信息逐步传；LSTM 让逐步传递的记忆可控；Attention 让当前位置按相关性读取允许看到的位置。</p></div>
+<h2>请回答后再继续</h2>
+<ol><li>一句话区分“梯度消失”和“前向时完全没有早期信息”。</li><li>假设一条记忆要保留很多步，LSTM 的遗忘门和输入门分别应大致接近 0 还是 1？为什么？</li><li>在 Attention 中，Q、K、V 各做什么？得到对 V 的加权和之后，是否已经直接得到下一个词的概率？</li></ol>
+<p>请把答案发给我；我会针对你的表述反馈，再完成第 1 章的理解检查。任何一步觉得抽象，也可以要求我换例子讲。</p>
+<p class="small"><a href="0001-sequence-modeling.html">上一节</a> · <a href="../COURSE.md">课程路线</a> · 主要阅读：<a href="https://arxiv.org/abs/1706.03762">Transformer 原论文第 3.2 节</a></p>
+</main></body></html>

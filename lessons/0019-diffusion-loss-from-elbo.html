@@ -1,0 +1,38 @@
+<!doctype html>
+<html lang="zh-CN"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>第八章 · 预测噪声的平方误差从哪里来？</title><link rel="stylesheet" href="../assets/course.css"></head><body><main>
+<div class="eyebrow">生成式人工智能 · 第 8 章 / 第 3 节 · 约 25 分钟</div>
+<h1>预测噪声的平方误差从哪里来？</h1>
+<p class="lead">前两节回答了“怎样造带噪训练题”和“生成时怎样走一步”。现在要回答研究时更重要的问题：为什么用预测噪声的平方误差训练，有希望让生成图片的分布靠近真实图片？这需要把你学过的 VAE 下界与高斯 KL 接起来。</p>
+
+<h2>1. 原本想优化什么？</h2>
+<p>我们最终希望真实图片 x₀ 在模型下的概率尽量高，即降低 −log pθ(x₀)。然而生成一张 x₀ 要经过 x<sub>T</sub>,…,x₁ 等许多中间状态。要算 pθ(x₀)，理论上需把所有可能的中间路径积分掉：</p>
+<div class="formula">pθ(x₀) = ∫ pθ(x₀,x₁,…,x<sub>T</sub>) dx₁…dx<sub>T</sub></div>
+<p>这个积分难直接计算。和 VAE 一样，DDPM 借助一个已知的正向加噪分布 q(x₁,…,x<sub>T</sub>|x₀)，建立负对数似然的可优化上界。这个 q 是预先设计的加噪过程，标准 DDPM 中通常不由神经网络学习。[<a href="https://arxiv.org/pdf/2006.11239">DDPM 原论文，第 2 节与式 (3)</a>]</p>
+
+<h2>2. 下界分解后，每一步在比较什么？</h2>
+<p>把路径概率拆开并整理，训练目标包含三类项：</p>
+<div class="formula">L = KL(q(x<sub>T</sub>|x₀) ‖ p(x<sub>T</sub>))<br>　+ Σₜ₌₂ᵀ E<sub>q</sub>[KL(q(xₜ₋₁|xₜ,x₀) ‖ pθ(xₜ₋₁|xₜ))]<br>　− E<sub>q</sub>[log pθ(x₀|x₁)]</div>
+<p>第一项检查加噪终点是否接近约定的标准高斯；最后一项检查最后一步能否还原数据；中间每个 KL 检查<strong>模型学到的反向一步</strong>与<strong>训练时根据已知 x₀ 算出的目标后验</strong>有多接近。上式的期望很重要：它是在训练数据和按正向过程抽到的路径上取平均。[<a href="https://arxiv.org/pdf/2006.11239">DDPM 原论文，式 (5)</a>]</p>
+
+<h2>3. 为什么中间 KL 会变成均值的平方误差？</h2>
+<p>前一节推导出 q(xₜ₋₁|xₜ,x₀) 是高斯。基础 DDPM 也把 pθ(xₜ₋₁|xₜ) 设为高斯，并固定其方差。在同方差的一维例子中，两者的 KL 只取决于均值差：</p>
+<div class="formula">KL(N(m<sub>target</sub>,σ²) ‖ N(m<sub>model</sub>,σ²))<br>= (m<sub>target</sub>−m<sub>model</sub>)² / (2σ²)</div>
+<p>例如两边标准差都是 0.3，目标均值 1.5、模型均值 1.8，则 KL=(1.5−1.8)²/(2×0.3²)=0.5；模型均值若改为 1.6，KL 降到约 0.056。直觉上，<strong>让两个反向高斯的中心靠近</strong>，就降低了这个时间点的 KL。若两边固定方差并不相同，还会多出不依赖模型均值的常数，不影响均值的优化方向。[<a href="https://arxiv.org/pdf/2006.11239">DDPM 原论文，式 (6)–(8)</a>]</p>
+
+<h2>4. 为什么均值误差又能写成噪声预测误差？</h2>
+<p>上一节看到模型通过预测 εθ(xₜ,t) 计算反向均值。在训练时，正向造 xₜ 所用的真实 ε 已知，因此目标后验均值也可用同样形式表达：</p>
+<div class="formula">目标：μ̃ₜ = [xₜ − βₜ·ε/√(1−ᾱₜ)] / √αₜ<br>模型：μθ = [xₜ − βₜ·εθ(xₜ,t)/√(1−ᾱₜ)] / √αₜ</div>
+<p>对<strong>同一道训练题</strong>，xₜ 和时间 t 固定。两式相减，xₜ 抵消，只剩真实噪声与预测噪声的差：</p>
+<div class="formula">‖μ̃ₜ−μθ‖²<br>= [βₜ² / (αₜ(1−ᾱₜ))] · ‖ε−εθ(xₜ,t)‖²</div>
+<p>代入上一段的高斯 KL，得到中间时间点的损失由<strong>带时间权重的噪声平方误差</strong>表示；权重还含反向高斯方差 σₜ²。模型不是凭空选择“预测噪声”这个任务：它是反向均值的一种参数化。[<a href="https://arxiv.org/pdf/2006.11239">DDPM 原论文，式 (8)、(11)–(12)</a>]</p>
+
+<h2>5. 为什么常见代码里只有一个简单 MSE？</h2>
+<p>原论文实验还使用一个简化目标：随机抽时间 t，直接最小化 ‖ε−εθ(xₜ,t)‖²，不再使用上面每个时间点原有的系数。这改变了各时间点训练题的相对权重。因此<strong>简化 MSE 不等于精确负对数似然</strong>，也不等于完整变分目标逐项原样计算；它是有理论来源、又经过实践性重加权的训练目标。原论文报告这种选择有利于其样本质量。[<a href="https://arxiv.org/pdf/2006.11239">DDPM 原论文，第 3.4 节与式 (14)</a>]</p>
+<div class="card accent"><p><strong>把整条逻辑连起来：</strong>想提高真实 x₀ 的模型概率 → 积分中间路径太难 → 使用正向加噪 q 构造变分界 → 中间项比较两种反向高斯 → 固定方差时比较均值 → 用预测噪声参数化均值 → 得到带权噪声平方误差 → 实践中常采用简化 MSE。</p></div>
+
+<details class="card"><summary><strong>进阶推导：变分界的第一步</strong></summary><p>把任意中间路径记作 x₁,…,x<sub>T</sub>，乘除同一个 q(x₁,…,x<sub>T</sub>|x₀)，得到 pθ(x₀)=E<sub>q</sub>[pθ(x₀,x₁,…,x<sub>T</sub>)/q(x₁,…,x<sub>T</sub>|x₀)]。对两边取对数，再用 log 的凹性应用 Jensen 不等式：</p><div class="formula">log pθ(x₀) ≥ E<sub>q</sub>[log pθ(x₀,x₁,…,x<sub>T</sub>) − log q(x₁,…,x<sub>T</sub>|x₀)]</div><p>取负号就得到可优化的负对数似然上界。随后按马尔可夫链分解 pθ 与 q，并把项重新分组，得到第 2 节的三个部分。这与 VAE 的 ELBO 推导是同一类工具，但扩散模型的中间变量是一整条逐步加噪路径。</p></details>
+
+<h2>第 8 章理解检查</h2><ol><li>如果目标反向高斯与模型反向高斯的方差固定且相同，模型要降低这一时间点的 KL，最直接要让哪个量接近哪个量？</li><li>在 μ̃ₜ 与 μθ 的两式中，同一训练题的 xₜ 为什么会抵消？剩下的误差是什么？</li><li>简化 MSE 与原始变分目标是什么关系？为什么不能把它直接称为“精确负对数似然”？</li></ol>
+<p>请用自己的话回答。若“高斯 KL → 均值平方误差”或 Jensen 那一步跳得太快，我们就在这里展开一维推导，不急着进入潜空间扩散。</p>
+<p class="small"><a href="0018-diffusion-reverse-step.html">上一节：反向一步</a> · <a href="../reference/diffusion-notation.html">符号速查</a> · <a href="../COURSE.md">课程路线</a> · 主要阅读：<a href="https://arxiv.org/abs/2006.11239">DDPM 原论文</a></p>
+</main></body></html>

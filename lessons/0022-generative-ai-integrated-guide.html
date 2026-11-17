@@ -1,0 +1,81 @@
+<!doctype html>
+<html lang="zh-CN"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>生成式人工智能：九个知识点的完整讲解</title><link rel="stylesheet" href="../assets/course.css"></head><body><main>
+<div class="eyebrow">生成式人工智能 · 综合讲解课件</div><h1>从概率到大模型训练：九个知识点连成一条线</h1>
+<p class="lead">这份课件按“问题是什么 → 概率模型怎样写 → 实际优化什么 → 怎样生成或使用 → 常见误解”讲解。它覆盖你指定的贝叶斯、自回归、VAE、GAN、Flow、Diffusion、Transformer、PEFT 和 LLM Post-training。第 9 章的潜空间扩散另见<a href="0021-latent-diffusion-complete.html">专题课件</a>。</p>
+<nav class="card toc"><a href="#bayes">1 贝叶斯</a><a href="#ar">2 自回归</a><a href="#vae">3 VAE</a><a href="#gan">4 GAN</a><a href="#flow">5 Flow</a><a href="#diffusion">6 Diffusion</a><a href="#transformer">7 Transformer</a><a href="#peft">8 PEFT</a><a href="#posttraining">9 Post-training</a><a href="#compare">全局比较</a></nav>
+
+<section id="bayes"><h2>1. 贝叶斯：观察到证据后怎样更新判断？</h2>
+<p>设 Y 是类别，X 是观测到的内容。生成方向描述“某类内容怎样出现”：p(x|y)p(y)；分类方向描述“看到内容后属于哪类”：p(y|x)。贝叶斯公式把两者接起来：</p>
+<div class="formula">p(y|x)=p(x|y)p(y)/p(x)<br>p(x)=Σ<sub>y′</sub>p(x|y′)p(y′)</div>
+<p><b>例子：</b>垃圾邮件先验 p(S)=0.2、普通邮件 p(N)=0.8；若“中奖”在垃圾邮件中出现概率 0.6，在普通邮件中是 0.05，那么看到该词后的未归一化分数分别是 0.12 和 0.04。只比类别可说 S 更大；要报概率必须归一化，p(S|中奖)=0.12/(0.12+0.04)=0.75。</p>
+<p>朴素贝叶斯再加入一个<strong>额外假设</strong>：给定 Y 后，特征 X₁,…,Xₙ 条件独立，于是 p(x₁,…,xₙ|y)=∏ᵢp(xᵢ|y)。这不要求词语在总体上互相独立。“免费”和“中奖”在真实语言中仍可能相关。错误地把条件独立读成无条件独立，会误解模型的局限。[<a href="https://cs229.stanford.edu/notes_archive/cs229-notes2.pdf">Stanford CS229 生成式学习与朴素贝叶斯讲义</a>]</p>
+<p><strong>与生成模型的关系：</strong>贝叶斯给出先验、似然、后验的语言。VAE 要近似 p(z|x)，LDM 可建模条件生成 p(x|文本)。但“会用贝叶斯公式”不等于每个生成模型都先显式学习 p(y)，再算 p(y|x)。</p></section>
+
+<section id="ar"><h2>2. 自回归：怎样把复杂联合分布拆成逐步预测？</h2>
+<p>任意序列的联合概率都能按链式法则分解，不需要独立假设：</p>
+<div class="formula">p(x₁,…,xₙ)=∏ᵢ₌₁ⁿ p(xᵢ|x₁,…,xᵢ₋₁)</div>
+<p>生成“明天 / 下雨 / 了”时，先抽第一个 token，再用已抽出的前缀抽第二个，依次继续。训练语言模型时，通常给定真实前缀，以真实下一个 token 的负对数概率作为损失；生成时则只能使用模型自己已经输出的前缀。这就是教师强制训练与自生成推理的差异。</p>
+<div class="formula">L<sub>AR</sub>=−Σᵢ log pθ(xᵢ|x&lt;ᵢ)</div>
+<p>链式法则允许不同生成顺序，但有限参数、结构和数据会让不同顺序的实际效果不同。训练时若某一步真实前缀是“小明 买”，推理时模型误生成“小明 卖”，后续预测将面对训练目标中没有作为该样本前缀使用的内容。损失里的 −log 直接惩罚真实 token 概率低的预测。[<a href="https://arxiv.org/abs/1601.06759">PixelRNN 原论文</a>，<a href="https://arxiv.org/abs/1506.03099">Scheduled Sampling 原论文</a>]</p>
+<p><strong>核心区别：</strong>自回归是概率分解和生成方式；Transformer 是常用网络架构。两者经常结合，但不是同一个概念。</p></section>
+
+<section id="vae"><h2>3. VAE：有潜变量时，怎样训练并生成？</h2>
+<p>设 z 表示图像的潜在因素。生成路线是 z∼p(z)，再由解码器按 pθ(x|z) 产生 x。已有图片 x 的真实后验 pθ(z|x) 通常难算，于是训练一个编码器 qφ(z|x) 近似它。</p>
+<div class="flow"><span>训练/重建：已有 x</span><b>→</b><span>qφ(z|x)</span><b>→</b><span>pθ(x|z)</span></div><div class="flow"><span>无输入生成</span><b>→</b><span>z∼p(z)</span><b>→</b><span>pθ(x|z)</span></div>
+<p>乘除 qφ(z|x)，再用 Jensen 不等式，可得对数似然下界：</p>
+<div class="formula">log pθ(x) ≥ E<sub>qφ(z|x)</sub>[log pθ(x|z)] − KL(qφ(z|x)‖p(z)) = ELBO</div>
+<p>第一项奖励给定 z 时能解释原图；第二项约束编码分布不要离生成时抽取的先验太远。KL 并不保证潜变量必然被使用，也不能把“重建用 qφ(z|x)”套到“无输入生成”上。为了让随机采样后的重建误差能回传到编码器，写成 z=μφ(x)+σφ(x)ε，ε∼N(0,I)；这里 σ 是标准差。[<a href="https://arxiv.org/abs/1312.6114">VAE 原论文</a>]</p></section>
+
+<section id="gan"><h2>4. GAN：怎样用判别器提供生成信号？</h2>
+<p>生成器 G 把噪声 z 变成假样本 G(z)；判别器 D 估计输入来自真实数据的概率。原始目标是：</p>
+<div class="formula">min<sub>G</sub> max<sub>D</sub> E<sub>x∼Pdata</sub>log D(x)+E<sub>z∼p(z)</sub>log(1−D(G(z)))</div>
+<p>固定 G 且允许最优判别器时，D*(x)=Pdata(x)/[Pdata(x)+P<sub>G</sub>(x)]；代回目标可得到常数加上 2·JS(Pdata‖P<sub>G</sub>)。这是<strong>原始 GAN 在理想判别器下的理论分析</strong>。实际训练 G 时，从 D 的输出通过反向传播取梯度，不需要先数值计算真实 JS。[<a href="https://arxiv.org/abs/1406.2661">GAN 原论文</a>]</p>
+<p>早期 D 太容易认出假样本时，原始生成器目标可能给弱梯度。非饱和目标改为让 G 最小化 −E log D(G(z))，改变的是<strong>G 的更新目标</strong>。训练完成后生成图片只需 z→G(z)，不需 D。WGAN-GP 进一步改用 critic 和不同目标，其梯度惩罚作用在 critic 分数对<strong>输入样本</strong>的导数上；不要把它说成原始 GAN 的 JS 训练。[<a href="https://arxiv.org/abs/1704.00028">WGAN-GP 原论文</a>]</p></section>
+
+<section id="flow"><h2>5. Flow：怎样既生成又精确算密度？</h2>
+<p>正规化流把简单先验 z∼pZ(z) 通过可逆映射变成 x。若为计算密度写成 z=fθ(x)，则：</p>
+<div class="formula">pX(x)=pZ(fθ(x)) · |det ∂fθ(x)/∂x|</div>
+<p>同一小区域的概率质量保持不变；拉伸后体积变大，密度必须相应降低。雅可比行列式正是局部体积修正。生成走 z→fθ⁻¹(z)，算已有 x 的密度走 x→fθ(x)，然后查先验密度并乘修正项；不必再把 z 生成一次 x。</p>
+<p>Real NVP 的仿射耦合层固定一组，变换另一组：z₁=x₁，z₂=x₂·exp(s(x₁))+t(x₁)。因此可逆，雅可比是三角形，log|det J|=s(x₁)。多层必须轮换固定哪一组，否则一直原样通过的变量无法改变其先验分布。[<a href="https://arxiv.org/abs/1605.08803">Real NVP 原论文</a>]</p></section>
+
+<section id="diffusion"><h2>6. Diffusion：怎样用一系列去噪分布生成？</h2>
+<p>正向加噪 q 是人为设定的训练机制，反向 pθ 是要学的生成机制。令 ᾱₜ=∏ₛ₌₁ᵗ(1−βₛ)，训练时可直接造：</p>
+<div class="formula">xₜ=√ᾱₜ x₀+√(1−ᾱₜ)ε，ε∼N(0,I)</div>
+<p>模型输入 xₜ,t，预测训练者自己加的 ε。生成时没有真实 x₀ 和已知 ε，从高斯 x<sub>T</sub> 开始，用 εθ(xₜ,t) 决定反向一步均值，并按采样规则逐步得到 x₀。生成时新抽的随机数 ξ 与训练标签 ε 不同。</p>
+<p>概率推导是：难算的 log pθ(x₀) → 变分界 → 每一步比较目标反向高斯与模型反向高斯的 KL → 固定方差后成为均值平方差 → 反向均值用 εθ 参数化，得到带权的 ‖ε−εθ‖²。常见简化 MSE 重新调整时间权重，不是精确负对数似然。[<a href="https://arxiv.org/abs/2006.11239">DDPM 原论文</a>，<a href="0020-diffusion-complete-chapter.html">第 8 章完整推导</a>]</p>
+<p>潜空间扩散先用 E、D 学压缩表示，在 z 空间运行扩散；文本可通过交叉注意力进入去噪网络。它仍是扩散生成，并非“编码器直接画图”。[<a href="https://arxiv.org/abs/2112.10752">LDM 原论文</a>]</p></section>
+
+<section id="transformer"><h2>7. Transformer：怎样让每个位置按内容读取上下文？</h2>
+<p>输入 token 先成为向量，再加位置信息。自注意力把每个位置映射成 Q、K、V：Q 表示它在找什么，K 表示它如何被匹配，V 是被读取并汇总的信息。核心计算为：</p>
+<div class="formula">Q=XW<sub>Q</sub>，K=XW<sub>K</sub>，V=XW<sub>V</sub><br>Attention(Q,K,V)=softmax(QKᵀ/√d<sub>k</sub>+M)V</div>
+<p>Q 与 K 来自同一输入时属于自注意力，但两者使用不同投影矩阵，不能说“本质一样所以可互换”。M 是掩码：decoder-only 语言模型用因果掩码阻止当前位置读取未来 token；编码器通常可以双向读取。多头注意力让不同投影子空间并行汇总，随后接逐位置前馈网络与残差连接。[<a href="https://arxiv.org/abs/1706.03762">Transformer 原论文</a>]</p>
+<p>语言模型预训练仍以自回归的下一 token 负对数似然为目标。推理时新 token 形成自己的 Q/K/V，过去位置的 K/V 可以缓存；当前 Q 与过去 K 计算注意力，再对加权 V 的结果做后续网络变换，最后经词表投影和 softmax 得到下一 token 分布。KV 缓存避免重复计算旧位置的 K/V，不能省掉当前注意力计算。</p></section>
+
+<section id="peft"><h2>8. PEFT：怎样少改参数地适配预训练模型？</h2>
+<p>参数高效微调（PEFT）是一类<strong>适配方法</strong>，不是新的生成概率分解，也不是“后训练”的同义词。目标是在保留预训练权重的同时，只训练少量新增参数。LoRA 是常见例子：冻结原权重 W，把更新限制为低秩矩阵乘积。</p>
+<div class="formula">h=Wx+ΔWx，　ΔW=BA<br>W∈ℝ<sup>dout×din</sup>，B∈ℝ<sup>dout×r</sup>，A∈ℝ<sup>r×din</sup>，r≪min(din,dout)</div>
+<p>原层若全量更新需 d<sub>out</sub>·d<sub>in</sub> 个可训练数；LoRA 对该层只需 r(d<sub>out</sub>+d<sub>in</sub>) 个。它让模型输出随 A、B 改变，梯度仍可穿过冻结的 W，但优化器不更新 W。低秩是假设任务所需的权重变化可被较小子空间近似；秩太低可能限制适配能力。不同任务可保存不同的 LoRA 更新，必要时并入原权重。[<a href="https://arxiv.org/abs/2106.09685">LoRA 原论文</a>]</p>
+<p>QLoRA 在此基础上把冻结基座量化存储，同时训练 LoRA 参数；它不是“把所有权重都以 4 位继续训练”。PEFT 节省可训练参数和优化器状态，但输入、激活和计算仍有成本，不能只凭参数数目推断总训练成本。[<a href="https://arxiv.org/abs/2305.14314">QLoRA 原论文</a>]</p></section>
+
+<section id="posttraining"><h2>9. LLM Post-training：预训练之后怎样教模型按要求回答？</h2>
+<p><strong>预训练</strong>让语言模型在大量文本上最小化下一 token 负对数似然，学到语言与知识的统计规律；它不自动保证模型能按对话指令回答。<strong>监督微调（SFT）</strong>使用“指令/上下文 → 理想回复”样本，继续最小化理想回复的条件负对数似然。通常只对需要模型生成的回复 token 计算损失，而非把用户提示当作要复述的答案。[<a href="https://arxiv.org/abs/2203.02155">InstructGPT 原论文</a>]</p>
+<div class="formula">L<sub>SFT</sub>=−Σ<sub>回复 token i</sub>log πθ(yᵢ|提示 x, y&lt;ᵢ)</div>
+<p>SFT 有一个局限：它告诉模型“好答案长什么样”，却不直接利用“同一提示下，A 比 B 好”的比较。偏好训练收集同一提示的胜出回复 y<sub>w</sub> 与落选回复 y<sub>l</sub>。一种路线先训练奖励模型 rφ，再优化策略模型的期望奖励，同时用 KL 约束别偏离参考模型太远；InstructGPT 使用了这种 RLHF 路线。奖励模型分数是学到的偏好代理，不等于真实质量或事实正确性。[<a href="https://arxiv.org/abs/2203.02155">InstructGPT 原论文</a>]</p>
+<div class="formula">奖励模型常见配对损失：−log σ(rφ(x,yw)−rφ(x,yl))<br>策略目标示意：最大化 E[rφ(x,y)]−β KL(πθ(·|x)‖πref(·|x))</div>
+<p>DPO 是另一种用偏好对训练策略的办法。上面的带 KL 约束策略目标，在给定奖励函数时有形式为 π*(y|x)∝π<sub>ref</sub>(y|x)exp(r(x,y)/β) 的最优策略。移项可把奖励差写成两个回复相对参考策略的对数概率差；再用“胜出回复比落选回复更可能被选中”的配对偏好模型，就得到直接训练 πθ 的分类损失：</p>
+<div class="formula">Δ=log[πθ(yw|x)/πref(yw|x)]−log[πθ(yl|x)/πref(yl|x)]<br>L<sub>DPO</sub>=−log σ(βΔ)</div>
+<p>这里 y<sub>w</sub> 是胜出回复，y<sub>l</sub> 是落选回复，β 控制相对参考策略的偏离。DPO 在其推导设定下不必先显式训练单独奖励模型、再运行在线强化学习；它仍需要偏好数据和参考策略，并不能凭一个“好答案”自动推断偏好。[<a href="https://arxiv.org/abs/2305.18290">DPO 原论文</a>]</p>
+<p><strong>区分两个轴：</strong>SFT、RLHF、DPO 描述训练阶段或目标；全量微调、LoRA、QLoRA 描述哪些参数以什么方式更新。可以用 LoRA 做 SFT，也可以在某些设置下用它做偏好训练。后训练的结果还需用独立评测检查指令遵循、事实性和任务表现；训练损失降低不是这些能力全部改善的证明。</p></section>
+
+<section id="compare"><h2>把九个知识点放回同一地图</h2>
+<div class="table-wrap"><table><thead><tr><th>问题</th><th>回答它的概念</th><th>必须记住的界限</th></tr></thead><tbody>
+<tr><td>观察后如何推断类别或潜变量？</td><td>贝叶斯后验</td><td>后验 p(z|x) 与生成先验 p(z) 不同</td></tr>
+<tr><td>复杂联合分布怎样变成生成步骤？</td><td>自回归、扩散反向链</td><td>前者按 token，后者按噪声时间</td></tr>
+<tr><td>训练目标从哪里来？</td><td>AR 的 NLL；VAE/DDPM 的变分界；GAN 的对抗目标；Flow 的精确密度</td><td>理论散度和实际优化的损失要分清</td></tr>
+<tr><td>网络怎样读上下文？</td><td>Transformer 注意力</td><td>它是架构，不自动规定概率目标</td></tr>
+<tr><td>预训练后如何适配与对齐？</td><td>PEFT、SFT、RLHF、DPO</td><td>参数更新方式与训练目标是两个轴</td></tr>
+</tbody></table></div>
+<p>一条研究论文阅读顺序是：先问作者建模的概率对象是什么，再看训练时实际计算哪个损失、生成时按什么步骤采样、网络结构提供什么能力、哪些结论依赖理想条件。用这五个问题读新模型，比只背模型名称可靠。</p></section>
+
+<p class="small"><a href="0023-generative-ai-concept-test.html">单独课件：概念测试及逐题答案</a> · <a href="0021-latent-diffusion-complete.html">第 9 章潜空间扩散</a> · <a href="../COURSE.md">课程路线</a></p>
+</main></body></html>

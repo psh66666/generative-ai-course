@@ -1,0 +1,26 @@
+<!doctype html>
+<html lang="zh-CN"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>第三章 · 两个分布相差多少？</title><link rel="stylesheet" href="../assets/course.css"></head><body><main>
+<div class="eyebrow">生成式人工智能 · 第 3 章 / 第 1 节 · 约 12 分钟</div>
+<h1>两个分布相差多少？</h1>
+<p class="lead">本节目标：把“生成结果像真实数据”说成可计算的问题，理解 KL 散度为什么有方向，以及 JS 散度怎样用一个中间分布实现对称比较。</p>
+
+<h2>1. 比较的不是两张图片，而是出现频率</h2>
+<p>先把结果简化成“猫”与“狗”。真实数据分布 <em>P</em> 中，猫占 90%，狗占 10%；模型分布 <em>Q</em> 中，猫狗各占 50%。单个样本可能都看起来合理，但<strong>整体比例不同</strong>。生成建模常要让模型分布在某种意义上接近数据分布。</p>
+<div class="card"><p>P=(0.9, 0.1)　真实数据：猫多狗少</p><p>Q=(0.5, 0.5)　模型输出：猫狗一样多</p></div>
+
+<h2>2. KL：以 P 为基准看 Q 有多不合适</h2>
+<div class="formula">KL(P‖Q) = Σₓ P(x) log[P(x)/Q(x)]</div>
+<p>在 P 常出现的结果上，若 Q 给的概率很低，惩罚就很大。KL 的整体值非负，P 与 Q 一致时为 0；但它<strong>不是普通距离</strong>，因为换顺序通常改变结果：KL(P‖Q) 通常不等于 KL(Q‖P)。特别地，若 P 某处概率大于 0，而 Q 在该处给 0，则 KL(P‖Q) 为无穷大。[<a href="https://probml.github.io/">Murphy，Probabilistic Machine Learning</a>]</p>
+<p>直观地说，KL(P‖Q) 对“真实会出现、模型却认为绝不可能”的情况尤其敏感。公式中的每一项可以是正也可以是负，<strong>总和</strong>才保证非负。</p>
+
+<h2>3. JS：先取中间分布，再从两边比较</h2>
+<div class="formula">M = (P + Q)/2<br>JS(P,Q) = ½KL(P‖M) + ½KL(Q‖M)</div>
+<p>JS 把 P 与 Q 的平均分布 M 当共同参照，因此 JS(P,Q)=JS(Q,P)。纪要说它是“KL 的对称化版本”，可作直觉，但<strong>它不是简单计算 [KL(P‖Q)+KL(Q‖P)]/2</strong>；关键在于先引入 M。以自然对数计算时，JS 的取值在 0 到 ln2 之间。[<a href="https://www.cise.ufl.edu/~anand/sp06/jensen-shannon.pdf">Lin，1991</a>]</p>
+<div class="card accent"><p><strong>一个极端例子：</strong>P=(1,0)，Q=(0,1)。两者完全没有重叠，KL(P‖Q) 和 KL(Q‖P) 都无穷大；M=(0.5,0.5)，所以 JS(P,Q)=ln2，仍是有限值。</p></div>
+<p>后面学 GAN 时还会遇到 JS；学极大似然时会重新看 KL 的方向。此刻先掌握“比较谁、方向是否影响结果、零概率会怎样”。</p>
+
+<h2>理解检查</h2><ol><li>P=(0.9,0.1)、Q=(0.5,0.5) 分别代表什么？为什么只看一张生成图片，无法看出这两个分布的全部差异？</li><li>若 P 认为某种结果会发生，而 Q 给它 0 概率，KL(P‖Q) 会怎样？</li><li>JS 为什么对称？它与 [KL(P‖Q)+KL(Q‖P)]/2 的定义有什么关键不同？</li></ol>
+<p>请把答案发给我。我会反馈后继续第 3 章的贝叶斯网络与朴素贝叶斯；疑问可以随时追问。</p>
+<p class="small"><a href="0004-conditional-probability-and-language-supervision.html">复习第 2 章</a> · <a href="../COURSE.md">课程路线</a> · 主要阅读：<a href="https://www.cise.ufl.edu/~anand/sp06/jensen-shannon.pdf">Jianhua Lin 原论文摘要与引言</a></p>
+<p class="small">若想继续理解散度与生成过程，阅读<a href="0006-divergence-and-generation.html">补充：KL/JS 怎样参与生成模型训练？</a></p>
+</main></body></html>

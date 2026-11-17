@@ -1,0 +1,28 @@
+<!doctype html>
+<html lang="zh-CN"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>第五章 · VAE 重参数化为什么有用？</title><link rel="stylesheet" href="../assets/course.css"></head><body><main>
+<div class="eyebrow">生成式人工智能 · 第 5 章 / 第 2 节 · 约 15 分钟</div><h1>把“随机抽一个数”拆成两步</h1>
+<p class="lead">先只想象一根滑块 z，不想整张图片。编码器看到一张已有图片后，需要告诉解码器：这个滑块通常放在哪儿，以及允许它抖动多大。</p>
+
+<h2>1. 编码器给出两个可调数字</h2>
+<p>假设编码器看到图片 x 后，输出<strong>中心 μ=2</strong>，以及<strong>抖动大小 σ=0.5</strong>。σ 是标准差，σ² 才叫方差。模型并不永远把 z 固定为 2；它希望每次从“围绕 2、有一定随机波动”的分布中抽一个 z，再交给解码器重建 x。</p>
+<div class="card"><p>同一张图 x → 编码器给出 μ=2、σ=0.5 → 抽一次 z → 解码器尝试重建 x。</p><p>若只说“请从以 2 为中心、波动 0.5 的分布里抽一个数”，抽样动作看起来像一个黑箱。重建错了时，普通反向传播难以直接追踪：改动 μ 或 σ 会怎样改变<strong>这一次</strong>抽到的 z？</p></div>
+
+<h2>2. 先抽标准噪声，再平移和缩放</h2>
+<p>改成两步：先从标准高斯抽一个与编码器无关的数字 ε；再由编码器输出的 μ、σ 计算 z。</p>
+<div class="formula">① ε∼N(0,1)　　② z=μ+σ×ε</div>
+<p>可以把 ε 看成“这一次随机摇动的方向和幅度”：ε=0，z 正好在中心；ε=+1，z 在中心右边一个标准差；ε=−1，z 在中心左边一个标准差。</p>
+<div class="card accent"><p>若 μ=2、σ=0.5：</p><p>ε=−1 → z=2−0.5=<strong>1.5</strong><br>ε=0 → z=2<br>ε=+1 → z=2+0.5=<strong>2.5</strong></p><p>这种做法得到的 z，分布仍然是“均值 2、标准差 0.5”的高斯分布。随机性没消失，只是与编码器参数分开了。[<a href="https://arxiv.org/abs/1312.6114">VAE 原论文，第 2.4 节</a>]</p></div>
+
+<h2>3. 为什么这样更容易训练？</h2>
+<p>假设这一次固定抽到了 ε=−1，解码器觉得 z=1.5 对重建 x 不合适，希望它略大一点。现在能明确看出两种调法：把 μ 从 2 调到 2.1，z 就从 1.5 变成 1.6；或把 σ 从 0.5 调到 0.4，z 也变成 1.6。</p>
+<div class="card demo" data-reparameterization-demo><strong>亲手拨动这一次的抽样</strong><p>这里固定 ε=−1，所以 z=μ−σ。先只移动 μ，观察 z；再只移动 σ。</p><label for="demo-mu">中心 μ：<output data-mu-value>2.0</output></label><input id="demo-mu" data-mu type="range" min="1.5" max="2.5" step="0.1" value="2.0"><label for="demo-sigma">标准差 σ：<output data-sigma-value>0.5</output></label><input id="demo-sigma" data-sigma type="range" min="0.1" max="1.0" step="0.1" value="0.5"><p aria-live="polite"><strong>这次得到的 z：<output data-z-value>1.5</output></strong></p></div>
+<p>真实训练不会由人手动选“调哪根旋钮”；它用梯度计算每根旋钮应该调多少。这里的重点只是：<strong>给定同一次 ε，z 与 μ、σ 之间有明确的可微计算关系</strong>，所以重建误差可以沿“解码器 → z → μ/σ → 编码器”传回。这叫重参数化。其他随机梯度方法也存在；VAE 常用这种方法来训练编码器。[<a href="https://arxiv.org/abs/1312.6114">VAE 原论文</a>]</p>
+
+<h2>4. 别把训练抽样与新图生成混起来</h2>
+<p>上面讨论的是<strong>训练时已有图片 x</strong>：编码器看 x，给出 μ、σ，再用 ε 算 z。训练完成后，若要从零生成新图片，根本没有 x 可送给编码器；此时仍直接从先验 p(z) 抽 z，交给解码器。ELBO 的 KL 项鼓励训练时的编码分布与这个先验接近，以免训练常用的 z 和新图生成时抽到的 z 相距太远。</p>
+
+<h2>先做一个小检查</h2><ol><li>μ=2、σ=0.5、固定 ε=−1 时，z 是多少？若只把 μ 改成 2.1，z 变成多少？</li><li>这次 ε 已经固定，为什么重建误差现在能指导编码器调整 μ 或 σ？请不用“梯度”一词也解释一次。</li><li>这套 μ、σ、ε 的计算是在重建已有 x 的训练路径中使用。无条件生成新图时，没有 x，z 从哪里来？</li></ol>
+<p>不清楚哪一步就直接指出来，我们停在这一节继续讲。</p>
+<p class="small"><a href="0011-vae-latent-elbo.html">上一节</a> · <a href="../COURSE.md">课程路线</a> · 主要阅读：<a href="https://arxiv.org/abs/1312.6114">VAE 原论文第 2.4 节</a></p>
+<script src="../assets/reparameterization-demo.js" defer></script>
+</main></body></html>
